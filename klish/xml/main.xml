@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<KLISH
+    xmlns="https://klish.libcode.org/klish3"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://klish.libcode.org/klish3 https://src.libcode.org/pkun/klish/src/3.2.0/klish.xsd">
+
+    <PLUGIN name="klish" />
+    <PLUGIN name="script" />
+    <PLUGIN name="lua">
+        autostart="/opt/netlab-cli/scripts/klish_autostart.lua"
+    </PLUGIN>
+
+    <PTYPE name="STRING" help="Standard string">
+        <ACTION sym="STRING" />
+    </PTYPE>
+
+    <PTYPE name="INT" help="Number of lines">
+        <ACTION sym="INT"/>
+    </PTYPE>
+
+    <PTYPE name="PTYPE_FORMAT" help="Output format">
+        <ACTION sym="STRING"/>
+        <COMPL>
+            <ACTION sym="script">echo "json"; echo "xml"; echo "csv"</ACTION>
+        </COMPL>
+    </PTYPE>
+
+    <PTYPE name="PTYPE_IPV4" help="Enter a valid IPv4 address (e.g. 192.168.1.1)">
+        <ACTION sym="script">
+            echo "${KLISH_VALUE}" | grep -qE "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+        </ACTION>
+    </PTYPE>
+
+    <PTYPE name="DYN_IFACE" help="Network Interface">
+        <ACTION sym="script">
+            if [ -d "/sys/class/net/${KLISH_VALUE}" ]; then
+                exit 0
+            fi
+            echo "Error: Interface ${KLISH_VALUE} does not exist."
+            exit 1
+        </ACTION>
+        <COMPL>
+            <ACTION sym="script">
+                ls /sys/class/net 2>/dev/null
+            </ACTION>
+        </COMPL>
+    </PTYPE>
+
+    <VIEW name="main" help="Top-level view">
+
+        <PROMPT name="prompt">
+            <ACTION sym="prompt">NetLab# </ACTION>
+        </PROMPT>
+
+        <COMMAND name="tools" help="Enter tools mode">
+            <ACTION sym="nav@klish">push view_tools</ACTION>
+        </COMMAND>
+
+        <COMMAND name="configure" help="Enter configuration mode">
+            <COMMAND name="terminal" help="Configure from the terminal">
+                <ACTION sym="nav@klish">push view_config</ACTION>
+            </COMMAND>
+        </COMMAND>
+
+        <LOG>
+            <ACTION sym="script">
+                echo "${KLISH_PARENT_LINE}" >> /tmp/klish_history.log
+            </ACTION>
+        </LOG>
+
+        <COMMAND name="history" help="Display command history">
+            <ACTION sym="script">
+                if [ -f /tmp/klish_history.log ]; then
+                    # 'nl' adds line numbers, -w3 sets width, -s sets separator
+                    nl -w3 -s"  " /tmp/klish_history.log
+                else
+                    echo "No history available."
+                fi
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="exit" help="Exit">
+            <ACTION sym="nav@klish">pop</ACTION>
+        </COMMAND>
+
+        <COMMAND name="clear" help="Clear the terminal screen">
+            <ACTION sym="script">
+                clear
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="show" help="Show system information">
+            <SWITCH name="show_options">
+
+                <COMMAND name="interface" help="Show interface details">
+                    <PARAM name="iface" help="Select interface" ptype="/DYN_IFACE" />
+                    <ACTION sym="script">
+                        ip addr show $KLISH_PARAM_iface
+                    </ACTION>
+                </COMMAND>
+
+                <COMMAND name="ip" help="Show IP-related information">
+                    <COMMAND name="interface" help="Show all interfaces with IP configuration">
+                        <ACTION sym="script">
+                            ip -brief addr show
+                        </ACTION>
+                    </COMMAND>
+                </COMMAND>
+
+                <COMMAND name="version" help="Show system version">
+                    <ACTION sym="script">uname -a</ACTION>
+                </COMMAND>
+
+                <COMMAND name="greeting" help="Display a welcome message">
+                    <ACTION sym="script">
+                        /opt/netlab-cli/scripts/show_greeting.sh
+                    </ACTION>
+                </COMMAND>
+
+                <COMMAND name="session" help="Show current session details">
+                    <ACTION sym="lua">
+                        local ctx = klish.context()
+                        print("--- Session Information ---")
+                        print("Session PID: " .. ctx.pid)
+                        print("User ID:     " .. ctx.uid)
+                        print("User Name:   " .. ctx.user)
+                        print("Command:     " .. ctx.cmd)
+                    </ACTION>
+                </COMMAND>
+
+            </SWITCH>
+        </COMMAND>
+
+        <COMMAND name="ping" help="Ping a destination">
+            <PARAM name="ip"
+                help="Destination IP address"
+                ptype="/PTYPE_IPV4" />
+            <ACTION sym="script">
+                echo "Pinging ${ip}..."
+                ping -c 4 "${KLISH_PARAM_ip}"
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="export" help="Export system data">
+            <COMMAND name="interface" help="Export interface data">
+                <SWITCH name="selector">
+
+                    <COMMAND name="format" help="Output format">
+                         <PARAM name="type" help="json, xml, csv" ptype="/PTYPE_FORMAT"/>
+                         <ACTION sym="script">
+                             CMD="ip -j addr show"
+
+                             FORMAT="${KLISH_PARAM_type}"
+
+                             if [ "$FORMAT" = "json" ]; then
+                                 $CMD | jq .
+                             elif [ "$FORMAT" = "csv" ]; then
+                                 echo '"interface","state","mtu","ip"'
+                                 $CMD | jq -r '.[] | [.ifname, .operstate, .mtu, (.addr_info[0].local // "N/A")] | @csv'
+                             elif [ "$FORMAT" = "xml" ]; then
+                                 $CMD | python3 /opt/netlab-cli/scripts/json_to_xml.py
+                             fi
+                         </ACTION>
+                    </COMMAND>
+
+                </SWITCH>
+            </COMMAND>
+        </COMMAND>
+
+        <COMMAND name="tree" help="Dump CLI structure tree">
+            <ACTION sym="script">
+                python3 /opt/netlab-cli/scripts/xml_tree.py /root/.klish/main.xml
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="search" help="Search for a CLI command">
+            <PARAM name="query" help="Search term" ptype="/STRING" />
+            <ACTION sym="script">
+                python3 /opt/netlab-cli/scripts/cli_search.py /root/.klish/main.xml "${KLISH_PARAM_query}"
+            </ACTION>
+        </COMMAND>
+
+        <!-- Pipes -->
+
+        <COMMAND name="include" help="Show lines matching pattern" filter="true">
+            <PARAM name="pattern" help="Regex pattern" ptype="/STRING"/>
+            <ACTION sym="script">
+                # -E extended regex, -i case insensitive
+                grep -Ei "${KLISH_PARAM_pattern}"
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="exclude" help="Hide lines matching pattern" filter="true">
+            <PARAM name="pattern" help="Regex pattern" ptype="/STRING"/>
+            <ACTION sym="script">
+                grep -Eiv "${KLISH_PARAM_pattern}"
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="grep" help="Standard grep" filter="true">
+            <PARAM name="pattern" help="Regex pattern" ptype="/STRING"/>
+            <ACTION sym="script">
+                grep --color=never -E "${KLISH_PARAM_pattern}"
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="head" help="Show first N lines" filter="true">
+            <PARAM name="lines" help="Number of lines (default 10)" ptype="/INT" optional="true"/>
+            <ACTION sym="script">
+                # Default to 10 if no parameter provided
+                L=${KLISH_PARAM_lines:-10}
+                head -n "$L"
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="tail" help="Show last N lines" filter="true">
+            <PARAM name="lines" help="Number of lines (default 10)" ptype="/INT" optional="true"/>
+            <ACTION sym="script">
+                L=${KLISH_PARAM_lines:-10}
+                tail -n "$L"
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="count" help="Count lines" filter="true">
+            <ACTION sym="script">
+                wc -l
+            </ACTION>
+        </COMMAND>
+
+    </VIEW>
+
+    <VIEW name="view_tools" help="Tools Sub-menu">
+
+        <PROMPT name="prompt">
+             <ACTION sym="prompt">NetLab(tools)# </ACTION>
+        </PROMPT>
+
+        <COMMAND name="date" help="Show current date">
+            <ACTION sym="script">date</ACTION>
+        </COMMAND>
+
+        <COMMAND name="sys-check" help="Check system resources">
+
+            <PARAM name="component"
+                   help="Select component (cpu, memory, disk)"
+                   ptype="/STRING">
+
+                <COMPL>
+                    <ACTION sym="script">echo "cpu"; echo "memory"; echo "disk"</ACTION>
+                </COMPL>
+            </PARAM>
+
+            <ACTION sym="script">
+                # Pass the parameter to the script
+                /opt/netlab-cli/scripts/sys_info.sh "${KLISH_PARAM_component}"
+            </ACTION>
+
+        </COMMAND>
+
+        <COMMAND name="exit" help="Go back">
+            <ACTION sym="nav@klish">pop</ACTION>
+        </COMMAND>
+
+    </VIEW>
+
+    <VIEW name="view_config">
+
+        <PROMPT name="prompt">
+            <ACTION sym="prompt">NetLab(config)# </ACTION>
+        </PROMPT>
+
+        <COMMAND name="interface" help="Select an interface to configure">
+            <PARAM name="iface_name" help="Interface Name" ptype="/DYN_IFACE">
+                <ACTION sym="lua">set_current_iface_from_param()</ACTION>
+                <ACTION sym="nav@klish">push view_interface</ACTION>
+            </PARAM>
+        </COMMAND>
+
+        <COMMAND name="exit" help="Exit to main menu">
+            <ACTION sym="nav@klish">pop</ACTION>
+        </COMMAND>
+    </VIEW>
+
+    <VIEW name="view_interface">
+
+        <PROMPT name="prompt">
+            <ACTION sym="lua">prompt_config_if()</ACTION>
+        </PROMPT>
+
+        <COMMAND name="ip" help="Internet Protocol">
+            <COMMAND name="address" help="Set IP address">
+                <PARAM name="addr" help="IP Address (e.g. 192.168.1.1/24)" ptype="STRING">
+                    <ACTION sym="lua">iface_set_ip()</ACTION>
+                </PARAM>
+            </COMMAND>
+        </COMMAND>
+
+        <COMMAND name="shutdown" help="Disable the interface">
+            <ACTION sym="lua">iface_shutdown()</ACTION>
+        </COMMAND>
+
+        <COMMAND name="exit" help="Go back">
+            <ACTION sym="lua">clear_current_iface()</ACTION>
+            <ACTION sym="nav@klish">pop</ACTION>
+        </COMMAND>
+
+    </VIEW>
+
+</KLISH>

@@ -1,0 +1,7 @@
+services:
+  netlab-cli:
+    build: .
+    container_name: netlab-cli
+    hostname: netlab-cli
+    tty: true           # keep a TTY for interactive CLI
+    stdin_open: true    # allow interactive input
