@@ -170,17 +170,12 @@ Klish 2 had a fuzzy matching logic that would execute a command if it was unambi
 
 ### Default Sub-commands
 
-A default sub-command means:
-
-- A parent command has exactly one child, and
-- The CLI automatically runs that child if the user stops early.
-
-Conceptually:
+A default sub-command means a parent command has exactly one child, and the CLI automatically runs that child if the user stops early. Conceptually:
 
     show ip           ⇒ would automatically run the only child
     show ip interface ⇒ runs it explicitly
 
-In Klish, this behavior is not automatic. The parent (`ip`) is considered incomplete unless you define an explicit `<ACTION>` for it. If you want `show ip` to execute the same logic as `show ip interface`, you must configure that intentionally in the XML.
+In Klish 3, this behavior is not automatic. The parent (`ip`) is considered incomplete unless you define an explicit `<ACTION>` for it. If you want `show ip` to execute the same logic as `show ip interface`, you must configure that intentionally in the XML.
 
 ### Parameter Validation
 
@@ -193,16 +188,18 @@ In Klish 3, this built-in regex engine has been removed in favor of a more flexi
 
 ### Command History
 
-Command history refers to the ability to recall and view previously executed commands, typically accessed via arrow keys for immediate reuse or a `history` command for a full list. In a standard shell environment (like Bash), this is straightforward because a single shell process remains active for the entire session, holding all past inputs in its memory.
+Command history refers to the ability to recall previously executed commands, typically accessed via arrow keys (for immediate reuse) or a `history` command (for a full list). In a standard shell environment like Bash, this is straightforward. A single shell process remains active for the entire session, holding all past inputs in its memory.
 
-The standard `history` command fails in Klish 3 due to ephemeral execution environments. When the Klish server receives a command from the client, it spawns a brand new, isolated shell process solely to execute that specific action. This temporary shell is born with a "blank mind". It has no knowledge of previous commands and terminates immediately after its task is done. Therefore, if you create a Klish command that simply runs the shell command history, it triggers a fresh shell that has essentially never run anything before, resulting in empty output.
+The standard `history` command fails in Klish 3 due to ephemeral execution environments. When the Klish server receives a command from the client, it spawns a brand new, isolated shell process solely to execute that specific action. This temporary shell is born with a "blank mind". It has no knowledge of previous commands and terminates immediately after its task is done. Therefore, if you create a Klish command that simply invokes `history`, it triggers a fresh shell that has essentially never run anything before, resulting in empty output.
 
-The solution in Klish 3 is to manually implement persistence using the `<LOG>` mechanism. Since the Klish server has access to the command string currently being executed (exposed via the `KLISH_PARENT_LINE` environment variable), you can configure a global `<LOG>` tag to intercept every command and append it to a persistent text file. The `history` command is then redefined not to ask the shell for its memory, but to read and display the contents of this log file, effectively reconstructing the session history that the ephemeral shells cannot provide.
+The solution is to manually implement persistence using `<LOG>`. Since the Klish server has access to the command string currently being executed (exposed via the `KLISH_PARENT_LINE` environment variable), you can configure a global `<LOG>` tag to intercept every command and append it to a persistent text file. The `history` command is then redefined not to ask the shell for its memory, but to read and display the contents of this log file.
 
     NetLab# history
       1  show ip interface
       2  history
       3  show interface eth0
+
+Note that this history is global, not per-session. Different CLI sessions all append to the same log file, so every user sees a unified record of commands that have been executed in the lab. This has clear benefits. It behaves like an audit trail, survives reconnects, and makes it easy to review what was tried previously. The trade-off is that it does not behave like a personal shell history. Commands from different users and sessions are mixed together, and history reflects system activity rather than just the current session.
 
 ### Text Filters
 
