@@ -20,8 +20,7 @@ The project is self-contained inside a container, giving you an isolated, reprod
         ├─ xml/
         │  └─ main.xml
         ├─ scripts/
-        │  ├─ show_greeting.sh
-        │  └─ set_hostname.sh
+        │  └─ ...
         ├─ config/
         │  ├─ klishd.conf       # server config
         │  └─ klish.conf        # client config
@@ -275,7 +274,7 @@ You can still pipe formatted output into text filters:
 
 A View in Klish is a logical container that groups related commands together. It acts as a distinct "mode" or "context" within the CLI. When a user defines a view, they are creating a specialized environment (a namespace) where only specific, relevant commands exist. Entering a view isolates the user from the global configuration, allowing them to focus on a specific task or subsystem.
 
-For example, navigating from the main menu into the tools view changes the prompt to indicate the new context:
+For example, navigating from the main menu into the "tools" view changes the prompt to indicate the new context:
 
     NetLab# tools
     NetLab(tools)#
@@ -322,17 +321,52 @@ Lua is not a replacement for Bash or Python. Instead, it fills a gap those langu
 - Build dynamic prompts and modes
 - Run lightweight control logic without creating new processes
 
-The example below demonstrates a Lua-driven dynamic prompt that changes based on the selected interface:
+### Configuration View
+
+To ensure system stability and prevent accidental changes, administrative commands are isolated in a dedicated view. You cannot modify system settings from the main menu; you must explicitly enter configuration view. This prevents users from accidentally running destructive commands (like `shutdown`) while just browsing status.
+
+The following example demonstrates entering configuration view, selecting an interface, and attempting to modify its state. Note that as you navigate deeper into specific components (like an interface), the prompt changes to indicate exactly what object you are modifying.
 
     NetLab# configure terminal
     NetLab(config)# interface <TAB>
     eth0   lo
     NetLab(config)# interface eth0
     NetLab(config-if-eth0)# shutdown
-    Shutting down eth0...
     RTNETLINK answers: Operation not permitted
 
-The “Operation not permitted” message is expected in this environment. The CLI is running inside a container without network-admin privileges, so the operation cannot modify the interface.
+> Note on Permissions: The "Operation not permitted" error shown above is expected behavior in this development environment. The CLI is running inside a generic container without the NET_ADMIN capability, so the Linux kernel blocks the state change. However, the output confirms that the Klish logic successfully triggered the command script.
+
+### Configuration Sessions
+
+In complex network environments, making changes one by one can be risky. If you lose connectivity halfway through a configuration update, the device might be left in a broken or inconsistent state. To solve this, the CLI supports configuration sessions, often referred to as transactional configuration.
+
+- **Draft**: When you enter a session, you are not modifying the live system. Instead, you are editing a candidate configuration also known as a draft. Think of this as a shopping cart; you can add, remove, or change items without affecting the real world yet.
+
+- **Transaction**: A transaction is a group of commands that are treated as a single unit. You define the entire state you want the device to be in, review it, and then apply it all at once.
+
+- **Commit**: It takes your draft (candidate configuration) and applies it to the running configuration (the live system). Until you type `commit`, your changes are invisible to the network.
+
+- **Discard**: If you change your mind before committing, you can simply discard the session. The draft is deleted, and the device remains exactly as it was.
+
+- **Rollback**: In a full production system, this allows you to revert the system to a previous valid state if a committed change causes issues.
+
+To demonstrate this capability in our Klish 3 environment without a heavy database backend, we implemented a file-based state mechanism. This allows us to simulate distinct "live" and "session" modes using standard Linux filesystem operations.
+
+When a user enters a configuration session, the CLI creates a unique session file and sets a session flag for that specific Process ID (PID). This ensures that multiple administrators can work on different drafts simultaneously without their changes colliding.
+
+    NetLab# configure session s-1
+    NetLab(config-session-s-1)#
+
+Every configuration command acts as a smart command. The command checks the user's current mode. On "live" mode, it executes the system command immediately. On "session" mode it buffers the command by appending the text to the session's candidate file instead of executing it.
+
+    NetLab(config-session-s-1)# interface eth0
+    NetLab(config-if-eth0)# shutdown
+    NetLab(config-if-eth0)# exit
+    NetLab(config-session-s-1)#
+
+The `commit` command is the execution engine. It reads the candidate file line-by-line and executes the buffered commands in order. Once the script finishes successfully, the candidate file is cleared, signifying that the transaction is complete and the draft has become the live configuration.
+
+    NetLab(config-session-s-1)# commit
 
 ### Command Tree View
 

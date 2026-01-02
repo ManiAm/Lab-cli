@@ -6,9 +6,7 @@
 
     <PLUGIN name="klish" />
     <PLUGIN name="script" />
-    <PLUGIN name="lua">
-        autostart="/opt/netlab-cli/scripts/klish_autostart.lua"
-    </PLUGIN>
+    <PLUGIN name="lua" />
 
     <PTYPE name="STRING" help="Standard string">
         <ACTION sym="STRING" />
@@ -226,9 +224,35 @@
         </COMMAND>
 
         <COMMAND name="configure" help="Enter configuration mode">
-            <COMMAND name="terminal" help="Configure from the terminal">
-                <ACTION sym="nav@klish">push view_config</ACTION>
-            </COMMAND>
+
+            <SWITCH name="configure_options">
+
+                <COMMAND name="terminal" help="Configure from the terminal">
+                    <ACTION sym="script">
+                        # Set mode to LIVE
+                        echo "live" > /tmp/klish_sess_${KLISH_PID}_mode
+                    </ACTION>
+
+                    <ACTION sym="nav@klish">push view_config</ACTION>
+                </COMMAND>
+
+                <COMMAND name="session" help="Enter a named configuration session">
+                    <PARAM name="sess_name" help="Session Name" ptype="STRING">
+                        <ACTION sym="script">
+                            # Set mode to SESSION and save the name
+                            echo "session" > /tmp/klish_sess_${KLISH_PID}_mode
+                            echo "${KLISH_PARAM_sess_name}" > /tmp/klish_sess_${KLISH_PID}_sess_name
+
+                            # Create a clean staging file for this session
+                            mkdir -p /tmp/candidates
+                            touch /tmp/candidates/${KLISH_PARAM_sess_name}.conf
+                        </ACTION>
+                        <ACTION sym="nav@klish">push view_config</ACTION>
+                    </PARAM>
+                </COMMAND>
+
+            </SWITCH>
+
         </COMMAND>
 
     </VIEW>
@@ -272,14 +296,47 @@
     <VIEW name="view_config">
 
         <PROMPT name="prompt">
-            <ACTION sym="prompt">NetLab(config)# </ACTION>
+            <ACTION sym="script">
+                MODE=$(cat /tmp/klish_sess_${KLISH_PID}_mode 2>/dev/null)
+
+                if [ "$MODE" = "session" ]; then
+                    NAME=$(cat /tmp/klish_sess_${KLISH_PID}_sess_name 2>/dev/null)
+                    echo -n "NetLab(config-session-${NAME})# "
+                else
+                    echo -n "NetLab(config)# "
+                fi
+            </ACTION>
         </PROMPT>
 
         <COMMAND name="interface" help="Select an interface to configure">
             <PARAM name="iface_name" help="Interface Name" ptype="/DYN_IFACE">
-                <ACTION sym="lua">set_current_iface_from_param()</ACTION>
+                <ACTION sym="script">
+                    echo "${KLISH_PARAM_iface_name}" > /tmp/klish_sess_${KLISH_PID}_iface
+                </ACTION>
                 <ACTION sym="nav@klish">push view_interface</ACTION>
             </PARAM>
+        </COMMAND>
+
+        <COMMAND name="show" help="Show configuration information">
+            <COMMAND name="candidate-config" help="Show candidate configuration (draft)">
+                <ACTION sym="script">
+                    SESS_NAME=$(cat /tmp/klish_sess_${KLISH_PID}_sess_name 2>/dev/null)
+                    CONF_FILE="/tmp/candidates/${SESS_NAME}.conf"
+
+                    # Check if file exists AND has content (size > 0)
+                    if [ -s "$CONF_FILE" ]; then
+                        cat "$CONF_FILE"
+                    else
+                        echo "No changes buffered."
+                    fi
+                </ACTION>
+            </COMMAND>
+        </COMMAND>
+
+        <COMMAND name="commit" help="Apply buffered changes">
+            <ACTION sym="script">
+                /opt/netlab-cli/scripts/commit_session.sh
+            </ACTION>
         </COMMAND>
 
         <COMMAND name="exit" help="Exit to main menu">
@@ -290,23 +347,32 @@
     <VIEW name="view_interface">
 
         <PROMPT name="prompt">
-            <ACTION sym="lua">prompt_config_if()</ACTION>
+            <ACTION sym="script">
+                IFACE=$(cat /tmp/klish_sess_${KLISH_PID}_iface 2>/dev/null)
+                echo -n "NetLab(config-if-${IFACE})# "
+            </ACTION>
         </PROMPT>
 
         <COMMAND name="ip" help="Internet Protocol">
             <COMMAND name="address" help="Set IP address">
                 <PARAM name="addr" help="IP Address (e.g. 192.168.1.1/24)" ptype="STRING">
-                    <ACTION sym="lua">iface_set_ip()</ACTION>
+                    <ACTION sym="script">
+                        /opt/netlab-cli/scripts/iface_manager.sh set_ip "${KLISH_PARAM_addr}"
+                    </ACTION>
                 </PARAM>
             </COMMAND>
         </COMMAND>
 
         <COMMAND name="shutdown" help="Disable the interface">
-            <ACTION sym="lua">iface_shutdown()</ACTION>
+            <ACTION sym="script">
+                /opt/netlab-cli/scripts/iface_manager.sh shutdown
+            </ACTION>
         </COMMAND>
 
         <COMMAND name="exit" help="Go back">
-            <ACTION sym="lua">clear_current_iface()</ACTION>
+            <ACTION sym="script">
+                rm -f /tmp/klish_sess_${KLISH_PID}_iface
+            </ACTION>
             <ACTION sym="nav@klish">pop</ACTION>
         </COMMAND>
 
