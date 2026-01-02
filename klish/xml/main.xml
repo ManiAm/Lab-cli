@@ -52,16 +52,6 @@
             <ACTION sym="prompt">NetLab# </ACTION>
         </PROMPT>
 
-        <COMMAND name="tools" help="Enter tools mode">
-            <ACTION sym="nav@klish">push view_tools</ACTION>
-        </COMMAND>
-
-        <COMMAND name="configure" help="Enter configuration mode">
-            <COMMAND name="terminal" help="Configure from the terminal">
-                <ACTION sym="nav@klish">push view_config</ACTION>
-            </COMMAND>
-        </COMMAND>
-
         <LOG>
             <ACTION sym="script">
                 echo "${KLISH_PARENT_LINE}" >> /tmp/klish_history.log
@@ -117,15 +107,17 @@
                     </ACTION>
                 </COMMAND>
 
-                <COMMAND name="session" help="Show current session details">
-                    <ACTION sym="lua">
-                        local ctx = klish.context()
-                        print("--- Session Information ---")
-                        print("Session PID: " .. ctx.pid)
-                        print("User ID:     " .. ctx.uid)
-                        print("User Name:   " .. ctx.user)
-                        print("Command:     " .. ctx.cmd)
-                    </ACTION>
+                <COMMAND name="terminal" help="Display terminal information">
+                    <COMMAND name="session" help="Show current session details">
+                        <ACTION sym="lua">
+                            local ctx = klish.context()
+                            print("--- Session Information ---")
+                            print("Session PID: " .. ctx.pid)
+                            print("User ID:     " .. ctx.uid)
+                            print("User Name:   " .. ctx.user)
+                            print("Command:     " .. ctx.cmd)
+                        </ACTION>
+                    </COMMAND>
                 </COMMAND>
 
             </SWITCH>
@@ -227,6 +219,18 @@
             </ACTION>
         </COMMAND>
 
+        <!-- Nested Views -->
+
+        <COMMAND name="tools" help="Enter tools mode">
+            <ACTION sym="nav@klish">push view_tools</ACTION>
+        </COMMAND>
+
+        <COMMAND name="configure" help="Enter configuration mode">
+            <COMMAND name="terminal" help="Configure from the terminal">
+                <ACTION sym="nav@klish">push view_config</ACTION>
+            </COMMAND>
+        </COMMAND>
+
     </VIEW>
 
     <VIEW name="view_tools" help="Tools Sub-menu">
@@ -262,6 +266,8 @@
         </COMMAND>
 
     </VIEW>
+
+    <!-- Configure Terminal View -->
 
     <VIEW name="view_config">
 

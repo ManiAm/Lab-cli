@@ -33,7 +33,7 @@ Build the container:
 
     docker compose build
 
-Start the container in backgound:
+Start the container in background:
 
     docker compose up -d
 
@@ -60,7 +60,7 @@ Or run a command using the `-c` option:
 
     klish -c "show greeting"
 
-## Klish Sessions
+## Klish Terminal Sessions
 
 Klish 2 operates as a single monolithic binary (`clish`) and handles parsing, execution, and user interaction simultaneously. Klish 3, on the other hand, adopts a Client-Server architecture. This decoupling significantly improves stability, concurrency, and performance.
 
@@ -76,11 +76,12 @@ When a client connects, the daemon creates a unique environment for that specifi
 
 - **Lifetime**: A session persists only as long as the client remains connected. Terminating the client (e.g., typing `exit` or closing the terminal) causes the corresponding klishd child process to terminate.
 
-To verify this architecture, we can open multiple interactive terminals to the container and inspect the process hierarchy. By running `show session` in two separate terminals, we can observe unique PIDs for each user, confirming they are separate entities.
+To verify this architecture, we can open multiple interactive terminals to the container and inspect the process hierarchy. By running `show terminal session` in two separate terminals, we can observe unique PIDs for each user, confirming they are separate entities.
 
 First client:
 
-    NetLab# show session
+    NetLab# show terminal session
+
     --- Session Information ---
     Session PID: 22
     User ID:     0
@@ -89,7 +90,8 @@ First client:
 
 Second client:
 
-    NetLab# show session
+    NetLab# show terminal session
+
     --- Session Information ---
     Session PID: 43
     User ID:     0
@@ -128,7 +130,7 @@ Klish provides context-aware Tab completion. As you type a command, it analyzes 
 Klish looks at all child elements defined under the `show` command in the XML and shows the available subcommands:
 
     NetLab# show
-    greeting    interface    ip   version
+    greeting    interface    ip   terminal   version
 
 ### Tab Completion (Dynamic)
 
@@ -151,6 +153,7 @@ Klish provides inline help. When you use `?`, it shows both the command keyword 
     greeting   Display a welcome message
     interface  Show interface details
     ip         Show IP-related information
+    terminal   Display terminal information
     version    Show system version
 
 The left column comes from each command’s `name` attribute, and the right column comes from its `help` attribute. This makes the CLI self-documenting. The user does not need to remember every command.

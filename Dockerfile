@@ -10,14 +10,14 @@ RUN apt-get update && \
 WORKDIR /opt
 
 # Build and install libfaux (required by klish v3)
-RUN git clone --branch 2.2.0 https://src.libcode.org/pkun/faux.git && \
+RUN git clone --branch 2.2.1 https://src.libcode.org/pkun/faux.git && \
     cd faux && \
     ./autogen.sh && \
     ./configure --prefix=/usr && \
     make -j"$(nproc)" && \
     make install
 
-# Build and install klish 3.2.0
+# Build and install klish
 RUN git clone --branch 3.2.0 https://src.libcode.org/pkun/klish.git && \
     cd klish && \
     ./autogen.sh && \
