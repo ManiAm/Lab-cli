@@ -56,7 +56,7 @@
             </ACTION>
         </LOG>
 
-        <COMMAND name="history" help="Display command history">
+        <COMMAND name="history" value="his|tory" help="Display command history">
             <ACTION sym="script">
                 if [ -f /tmp/klish_history.log ]; then
                     # 'nl' adds line numbers, -w3 sets width, -s sets separator

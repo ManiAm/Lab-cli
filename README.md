@@ -159,16 +159,26 @@ The left column comes from each command’s `name` attribute, and the right colu
 
 ### Command Abbreviation
 
-Some CLIs (for example IOS-style CLIs) allow command abbreviations. This can be convenient when:
+Klish 3 uses a strict command resolver by default. In this mode, users must either type the full command name or rely on tab completion to expand it. Typing a partial keyword that does not exactly match a command results in an error, even if the prefix is unique:
 
-- Commands are long
-- Operators already know the syntax well
-- Speed of typing matters
-
-Klish 2 had a fuzzy matching logic that would execute a command if it was unambiguous (e.g., `ver --> version`). Klish 3 removed this to prevent ambiguity and simplify the resolution engine. This is a fundamental change in Klish 3. It uses a strict command resolver that requires exact matches (or explicit aliases). Keywords must be typed in full even if the prefix is unique.
-
-    NetLab# show ver
+    NetLab# his
     Error: Illegal command
+
+Command abbreviations can be enabled explicitly by using the `value` attribute with the `|` delimiter:
+
+    <COMMAND name="history" value="his|tory" />
+
+The portion before `|` (`his`) is the mandatory prefix and the portion after `|` (`tory`) is an optional suffix. The user must type at least the mandatory prefix. Any progressive extension of the optional suffix is accepted. For the example above, the following inputs are valid:
+
+```text
+his
+hist
+histo
+histor
+history
+```
+
+Command abbreviations can be useful when commands are long and operators are already familiar with the CLI syntax, as they reduce typing effort and improve efficiency for experienced users. However, abbreviations can also introduce ambiguity (especially as the command set grows or evolves) which may lead to unexpected command resolution or operator error. For this reason, their use should be deliberate and carefully controlled, and they are often discouraged in favor of explicit commands and reliable tab completion.
 
 ### Default Sub-commands
 
