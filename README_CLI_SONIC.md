@@ -50,22 +50,6 @@ In the SONiC architecture, FRR ([FRRouting](https://docs.frrouting.org/en/latest
 
 FRR maintains its own internal configuration state, which is separate from SONiC's central database (Redis ConfigDB). [vtysh](https://docs.frrouting.org/projects/dev-guide/en/latest/vtysh.html) is the native command-line shell for FRR (similar to a Cisco CLI). While powerful, using vtysh directly creates a "split brain" scenario where the running configuration in FRR no longer matches the persistent configuration in Redis.
 
-If you configure a route directly in `vtysh` but do not update Redis, the configuration will be lost upon a system reboot or config reload. To manage this, SONiC offers two distinct modes of operation: Unified Mode and Split Mode.
-
-#### Unified Mode
-
-In **Unified Mode**, SONiC treats the Redis ConfigDB as the single source of truth. A synchronization daemon, known as `frrcfgd` (or `bgpcfgd` in older versions), continuously monitors the Redis ConfigDB. When you make a change using SONiC management tools (such as the SONiC CLI/Klish or Click), the daemon detects the update and automatically pushes the corresponding configuration into FRR. This ensures that your routing configuration is persistent, centralized, and synchronized across the entire system without requiring direct interaction with the FRR shell.
-
-The following diagram clearly illustrates the workflow of Unified Mode in SONiC, distinguishing between boot-time and run-time operations. During system startup, `sonic-cfggen` reads the persistent configuration from `config_db.json` and generates the initial configuration files for the individual FRR daemons (bottom path). Once the system is running, the `frrcfgd` daemon takes over responsibility for synchronization; it continuously monitors the Redis CONFIG_DB for any changes initiated by the Management Framework. When a routing change is detected, `frrcfgd` translates it and pushes the update directly to the running FRR container (middle path). While the vtysh remains accessible for viewing state or testing unsupported parameters, these manual changes are not persisted back to the SONiC database.
-
-<img src="pics/unified.png" alt="segment" width="600">
-
-#### Split Mode
-
-In **Split Mode**, the synchronization link is severed. The operator explicitly separates the management of device infrastructure (ports, interfaces) from the management of routing protocols. The `frrcfgd` daemon stops overwriting the FRR configuration. The operator must configure routing protocols directly via `vtysh` and save them to the `frr.conf` file, just as they would on a traditional Linux router.
-
-Split mode allows access to advanced FRR features (e.g., complex route maps, specific OSPF tweaks) that may not yet be supported by the SONiC object model or CLI. It also provides a familiar interface for network engineers used to standard industry CLIs (like Cisco IOS or Arista EOS) without needing to learn SONiC-specific database structures. It offers direct control over the routing engine for troubleshooting and complex topologies where automated templating might be too restrictive.
-
 ### Bash
 
 Because SONiC is built on a standard Debian Linux distribution, the Bash shell gives you direct access to the underlying OS. This is particularly powerful for system-level troubleshooting that goes beyond networking, such as monitoring CPU and memory utilization with `htop`, checking disk space with `df -h`, or reviewing kernel messages via `dmesg`. Since most SONiC services (like SWSS, LLDP, and BGP) run as independent Docker containers, the Bash shell serves as the cockpit from which you can manage these containers using standard docker commands, such as `docker ps` to check service health or `docker exec` to drop into a specific daemon's environment.
