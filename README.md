@@ -215,7 +215,7 @@ Note that this history is global, not per-session. Different CLI sessions all ap
 
 ### Text Filters
 
-In Klish 3, the pipe (`|`) character is handled natively by the engine to chain commands, but you must explicitly mark commands as "filters" for them to be available after the pipe. You do this by adding the attribute `filter="true"` to the `<COMMAND>` tag.
+The Klish 3 engine provides native support for piping command output through text filters using the `|` operator. Any `<COMMAND>` element with the attribute `filter="true"` is automatically available as a pipe target, allowing users to refine output without additional plumbing.
 
     NetLab# show interface eth0 | grep inet
         inet 172.18.0.2/16 brd 172.18.255.255 scope global eth0
@@ -228,6 +228,7 @@ The following utilities are available:
 | **tail**    | Keep only the last N lines of output.               |
 | **include** | Show only lines that contain the given text.        |
 | **exclude** | Hide lines that contain the given text.             |
+| **begin**   | Start output from the first line matching a pattern.|
 | **grep**    | Search output for lines matching a text (or regex). |
 | **count**   | Count the number of lines in the output.            |
 

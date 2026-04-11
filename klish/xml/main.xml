@@ -187,6 +187,13 @@
             </ACTION>
         </COMMAND>
 
+        <COMMAND name="begin" help="Start output from first matching line" filter="true">
+            <PARAM name="pattern" help="Regex pattern" ptype="/STRING"/>
+            <ACTION sym="script">
+                sed -n "/${KLISH_PARAM_pattern}/,\$p"
+            </ACTION>
+        </COMMAND>
+
         <COMMAND name="grep" help="Standard grep" filter="true">
             <PARAM name="pattern" help="Regex pattern" ptype="/STRING"/>
             <ACTION sym="script">
