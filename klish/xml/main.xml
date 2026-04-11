@@ -17,7 +17,9 @@
     </PTYPE>
 
     <PTYPE name="PTYPE_FORMAT" help="Output format">
-        <ACTION sym="STRING"/>
+        <ACTION sym="script">
+            case "${KLISH_VALUE}" in json|xml|csv) exit 0 ;; esac; exit 1
+        </ACTION>
         <COMPL>
             <ACTION sym="script">echo "json"; echo "xml"; echo "csv"</ACTION>
         </COMPL>
@@ -83,8 +85,14 @@
                 <COMMAND name="interface" help="Show interface details">
                     <PARAM name="iface" help="Select interface" ptype="/DYN_IFACE" />
                     <ACTION sym="script">
-                        ip addr show $KLISH_PARAM_iface
+                        ip addr show ${KLISH_PARAM_iface}
                     </ACTION>
+                    <COMMAND name="format" min="0" help="Output format">
+                        <PARAM name="fmt" help="json, xml, csv" ptype="/PTYPE_FORMAT"/>
+                        <ACTION sym="script">
+                            ip -j addr show ${KLISH_PARAM_iface} | python3 /opt/netlab-cli/scripts/text_to_format.py "${KLISH_PARAM_fmt}"
+                        </ACTION>
+                    </COMMAND>
                 </COMMAND>
 
                 <COMMAND name="ip" help="Show IP-related information">
@@ -92,11 +100,29 @@
                         <ACTION sym="script">
                             ip -brief addr show
                         </ACTION>
+                        <COMMAND name="format" min="0" help="Output format">
+                            <PARAM name="fmt" help="json, xml, csv" ptype="/PTYPE_FORMAT"/>
+                            <ACTION sym="script">
+                                ip -j addr show | python3 /opt/netlab-cli/scripts/text_to_format.py "${KLISH_PARAM_fmt}"
+                            </ACTION>
+                        </COMMAND>
                     </COMMAND>
                 </COMMAND>
 
                 <COMMAND name="version" help="Show system version">
                     <ACTION sym="script">uname -a</ACTION>
+                    <COMMAND name="format" min="0" help="Output format">
+                        <PARAM name="fmt" help="json, xml, csv" ptype="/PTYPE_FORMAT"/>
+                        <ACTION sym="script">
+python3 -c "
+import json, platform
+d = {'system': platform.system(), 'node': platform.node(),
+     'release': platform.release(), 'version': platform.version(),
+     'machine': platform.machine()}
+print(json.dumps(d))
+" | python3 /opt/netlab-cli/scripts/text_to_format.py "${KLISH_PARAM_fmt}"
+                        </ACTION>
+                    </COMMAND>
                 </COMMAND>
 
                 <COMMAND name="greeting" help="Display a welcome message">
@@ -129,32 +155,6 @@
                 echo "Pinging ${ip}..."
                 ping -c 4 "${KLISH_PARAM_ip}"
             </ACTION>
-        </COMMAND>
-
-        <COMMAND name="export" help="Export system data">
-            <COMMAND name="interface" help="Export interface data">
-                <SWITCH name="selector">
-
-                    <COMMAND name="format" help="Output format">
-                         <PARAM name="type" help="json, xml, csv" ptype="/PTYPE_FORMAT"/>
-                         <ACTION sym="script">
-                             CMD="ip -j addr show"
-
-                             FORMAT="${KLISH_PARAM_type}"
-
-                             if [ "$FORMAT" = "json" ]; then
-                                 $CMD | jq .
-                             elif [ "$FORMAT" = "csv" ]; then
-                                 echo '"interface","state","mtu","ip"'
-                                 $CMD | jq -r '.[] | [.ifname, .operstate, .mtu, (.addr_info[0].local // "N/A")] | @csv'
-                             elif [ "$FORMAT" = "xml" ]; then
-                                 $CMD | python3 /opt/netlab-cli/scripts/json_to_xml.py
-                             fi
-                         </ACTION>
-                    </COMMAND>
-
-                </SWITCH>
-            </COMMAND>
         </COMMAND>
 
         <COMMAND name="tree" help="Dump CLI structure tree">

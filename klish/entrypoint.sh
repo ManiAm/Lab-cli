@@ -3,8 +3,8 @@ set -e
 
 echo "Starting NetLab-CLI (Klish sandbox)..."
 
-# Start daemon in foreground mode (-d) but backgrounded by this script
-klishd -f /etc/klish/klishd.conf -d -v &
+# -d = foreground (don't daemonize), -f = config file
+klishd -d -f /etc/klish/klishd.conf &
 KLISTHD_PID=$!
 
 # Wait for the UNIX socket to appear

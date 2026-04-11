@@ -232,54 +232,63 @@ The following utilities are available:
 | **grep**    | Search output for lines matching a text (or regex). |
 | **count**   | Count the number of lines in the output.            |
 
+> **`include` vs `grep`:** Both match lines by pattern, but `include` is case-insensitive (`grep -Ei`) while `grep` is case-sensitive (`grep -E`). Use `include` for quick, forgiving searches and `grep` when exact casing matters.
+
 ### Formatters
 
-Formatters are specialized tools designed to completely transform the structure of data, rather than just filtering its content. Unlike simple text utilities (like `grep` or `head`) that work line-by-line, a formatter typically consumes the entire dataset at once, parses its internal logic, and rebuilds it into a structured format like JSON, XML, or CSV. Because this process changes the fundamental nature of the data, formatters are usually terminal commands meaning they are the final step in a command chain. You rarely pipe the output of a JSON formatter into another text tool because the predictable structure is lost or changed.
+Formatters transform command output into a structured data format such as JSON, XML, or CSV. Unlike text filters that work on raw text line-by-line, a formatter requires the upstream command to produce structured data so the output is semantically meaningful.
 
-We technically can use pipes for formatters, but it is fragile compared to filters like `head` or `tail`. A standard pipe (`|`) only transmits raw text (Standard Output). It does not transmit metadata about what generated that text. Filters don't care about context. "Give me the first 5 lines" works equally well for a list of files, a list of IPs, or a poem. However, formatters need context. To convert text to JSON, the parser must know if the text is an IP address table, a file directory, or user stats. Raw text is ambiguous. A command such as `show interface | json` fails unless you explicitly tell the JSON tool, "This text coming from the pipe is network interface data".
+| Formatter | Description                                      |
+| --------- | ------------------------------------------------ |
+| **json**  | Emit output as a JSON document.                  |
+| **xml**   | Emit output as an XML document.                  |
+| **csv**   | Emit output as comma-separated values.           |
 
-There is no "Magic Wand" algorithm that can take the output of any arbitrary command and correctly format it into JSON, XML, or CSV. Every command has a unique output signature. `ls -l` produces columns of permissions and filenames; `ip addr` produces indented blocks of key-value pairs; `free -m` produces a grid of memory stats. Because the input structures vary so wildly, each command requires its own specific formatter logic. You cannot write a single function that handles `ls`, `ip`, and `uname` simultaneously.
+In Klish 3, the `|` character is reserved by the engine for text filters. Formatters therefore use the `format` keyword instead. The `format` parameter is implemented as an optional subcommand inside each `show` command. When present, the command switches to a structured data source (for example, `ip -j addr show` instead of `ip addr show`) and pipes the result through a format converter
 
-The most robust way to handle formatting is when the command itself supports it natively. A notable example is the modern Linux `ip` command. Instead of relying on an external tool to read its text output and guess the structure, the developers of `ip` built the formatting logic internally. The command `ip -j addr show` skips printing printing human-readable text and directly outputs structured JSON.
+Json Example:
 
-We have added three sample CLIs:
-
-    NetLab# export interface format json
-    NetLab# export interface format xml
-    NetLab# export interface format csv
-
-Generating the full interface dataset in standard JSON format:
-
-    NetLab# export interface format json
+    NetLab# show interface eth0 format json
 
     [
       {
-        "ifindex": 1,
-        "ifname": "lo",
-        "flags": [
-          "LOOPBACK",
-          "UP",
-          "LOWER_UP"
-        ],
-        "mtu": 65536,
-    ...
-
-Generating a flattened comma-separated values list, useful for spreadsheets:
-
-    NetLab# export interface format csv
-
-    "interface","state","mtu","ip"
-    "lo","UNKNOWN",65536,"127.0.0.1"
-    "eth0","UP",1500,"172.18.0.2"
-
-You can still pipe formatted output into text filters:
-
-    NetLab# export interface format json | grep eth
+        "ifindex": 3,
         "ifname": "eth0",
-        "link_type": "ether",
-            "label": "eth0",
+        "flags": ["BROADCAST", "MULTICAST", "UP", "LOWER_UP"],
+        "mtu": 1500,
+        ...
+      }
+    ]
 
-> Note that doing so may result in invalid JSON structure.
+CSV Example:
+
+    NetLab# show version format csv
+
+    "system","node","release","version","machine"
+    "Linux","abcd1234","6.6.87","#1 SMP ...","x86_64"
+
+XML Example:
+
+    NetLab# show ip interface format xml
+
+    <output>
+      <item>
+        <ifname>lo</ifname>
+        <operstate>UNKNOWN</operstate>
+        ...
+      </item>
+      <item>
+        <ifname>eth0</ifname>
+        ...
+      </item>
+    </output>
+
+Formatted output can still be piped through text filters. The formatter runs first (inside the command), and the text filter operates on the formatted result via the normal pipe:
+
+    NetLab# show interface eth0 format json | grep ifname
+        "ifname": "eth0",
+
+> Piping a text filter after a formatter will return matching lines but may produce an incomplete document.
 
 ### Views
 
@@ -405,9 +414,6 @@ Klish 3 is designed as a lightweight execution engine and does not include a bui
         │   ├── version : Show system version
         │   └── greeting : Display a welcome message
         ├── ping : Ping a destination
-        ├── export : Export system data
-        │   └── interface : Export interface data
-        │       └── format : Output format (All interfaces)
         ├── tree : Dump CLI structure tree
         └── search : Search
 
@@ -439,14 +445,8 @@ Large CLIs quickly become difficult to navigate, especially when commands exist 
     2. main -> show -> ip -> interface
       help: Show all interfaces with IP configuration
 
-    3. main -> export -> interface
-      help: Export interface data
-
-    4. main -> export -> interface -> format
-      help: Output format (All interfaces)
-
-    5. view_config -> interface
+    3. view_config -> interface
       help: Select an interface to configure
 
-    6. view_interface -> shutdown
+    4. view_interface -> shutdown
       help: Disable the interface
