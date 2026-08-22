@@ -28,7 +28,7 @@ Klish does not modify the system configuration directly. Instead, it follows a s
 
 - **Output Rendering**: The server returns a response (typically in JSON format). Klish then passes this data to a Renderer script, which utilizes Jinja2 templates to format the raw data into the clean, human-readable tables or text displayed on your terminal.
 
-<img src="pics/cli_interactions.jpg" alt="segment" width="700">
+<img src="../pics/cli_interactions.jpg" alt="segment" width="700">
 
 For a detailed architectural diagram of this process, refer to the [SONiC Management Framework Documentation](https://github.com/sonic-net/SONiC/blob/master/doc/mgmt/Management%20Framework.md#3221-cli)
 

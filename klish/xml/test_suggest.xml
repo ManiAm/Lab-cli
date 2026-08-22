@@ -1,0 +1,583 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<KLISH
+    xmlns="https://klish.libcode.org/klish3"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://klish.libcode.org/klish3 https://src.libcode.org/pkun/klish/src/3.2.0/klish.xsd">
+
+    <!--
+        Dummy command tree for testing suggestion algorithms.
+
+        All commands live under "test" so they do not interfere with the
+        real CLI.  Every leaf simply echoes its own path, making it easy
+        to verify which command was matched.
+
+        Designed to exercise the combined pipeline in klish/scripts/suggest.py
+        and the cases in docs/README_SUGGESTIONS.md:
+
+          Case                         What it tests
+          ───────────────────────────  ────────────────────────────────
+          Short keywords (2-4 ch)      Tight costs; junk like xyz must miss
+          Medium / long keywords       Typos, transpositions, insertions
+          Hyphenated keywords          Technique 12: "rning config"
+          Prefix-ambiguous             interface vs interfaces
+          Similar at same level        summary / suppress / suspend
+          Deep nesting (4+ levels)     Recursive tree walk after a correction
+          Incomplete command           Stage 2 completions (e.g. debug)
+          Abbreviations                Stage 2 prefix match (sh ip int)
+          PARAM slots                  Technique 13: IPs/ASNs not rewritten
+          Keyword/value swap           Technique 14: router 65001 bgp
+          First-token + later typo     Stage 1 continues after a correction
+          Garbage                      No suggestion for unrelated tokens
+    -->
+
+    <VIEW name="main">
+
+        <COMMAND name="test" help="Suggestion algorithm test commands">
+            <SWITCH name="test_options">
+
+                <!-- ============================================================
+                     show  —  broad subtree with many sibling types
+                     ============================================================ -->
+                <COMMAND name="show" help="Test: show commands">
+                    <SWITCH name="test_show">
+
+                        <!-- Short keywords -->
+                        <COMMAND name="bgp" help="Test: short keyword (3 ch)">
+                            <SWITCH name="test_show_bgp">
+                                <COMMAND name="summary" help="Test: BGP summary">
+                                    <ACTION sym="script">echo "test show bgp summary"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="neighbors" help="Test: BGP neighbors">
+                                    <ACTION sym="script">echo "test show bgp neighbors"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="routes" help="Test: BGP routes">
+                                    <ACTION sym="script">echo "test show bgp routes"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="ospf" help="Test: short keyword (4 ch)">
+                            <SWITCH name="test_show_ospf">
+                                <COMMAND name="neighbors" help="Test: OSPF neighbors">
+                                    <ACTION sym="script">echo "test show ospf neighbors"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="database" help="Test: OSPF database">
+                                    <ACTION sym="script">echo "test show ospf database"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="routes" help="Test: OSPF routes">
+                                    <ACTION sym="script">echo "test show ospf routes"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="vrf" help="Test: short keyword (3 ch)">
+                            <ACTION sym="script">echo "test show vrf"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="acl" help="Test: short keyword (3 ch)">
+                            <ACTION sym="script">echo "test show acl"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="arp" help="Test: short keyword (3 ch)">
+                            <ACTION sym="script">echo "test show arp"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="mac" help="Test: short keyword (3 ch)">
+                            <ACTION sym="script">echo "test show mac"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="ntp" help="Test: short keyword (3 ch)">
+                            <SWITCH name="test_show_ntp">
+                                <COMMAND name="status" help="Test: NTP status">
+                                    <ACTION sym="script">echo "test show ntp status"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="servers" help="Test: NTP servers">
+                                    <ACTION sym="script">echo "test show ntp servers"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="dns" help="Test: short keyword (3 ch)">
+                            <ACTION sym="script">echo "test show dns"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="stp" help="Test: short keyword (3 ch)">
+                            <ACTION sym="script">echo "test show stp"</ACTION>
+                        </COMMAND>
+
+                        <!-- Prefix-ambiguous: interface vs interfaces -->
+                        <COMMAND name="interface" help="Test: prefix ambiguity (singular)">
+                            <ACTION sym="script">echo "test show interface"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="interfaces" help="Test: prefix ambiguity (plural)">
+                            <SWITCH name="test_show_interfaces">
+                                <COMMAND name="counters" help="Test: interface counters">
+                                    <ACTION sym="script">echo "test show interfaces counters"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="summary" help="Test: interface summary">
+                                    <ACTION sym="script">echo "test show interfaces summary"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="status" help="Test: interface status">
+                                    <ACTION sym="script">echo "test show interfaces status"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <!-- Similar at same level: all start with "su" -->
+                        <COMMAND name="summary" help="Test: similar prefix (su...)">
+                            <ACTION sym="script">echo "test show summary"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="suppress" help="Test: similar prefix (su...)">
+                            <ACTION sym="script">echo "test show suppress"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="suspend" help="Test: similar prefix (su...)">
+                            <ACTION sym="script">echo "test show suspend"</ACTION>
+                        </COMMAND>
+
+                        <!-- Hyphenated keywords -->
+                        <COMMAND name="running-config" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test show running-config"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="startup-config" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test show startup-config"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="port-channel" help="Test: hyphenated keyword">
+                            <SWITCH name="test_show_pc">
+                                <COMMAND name="summary" help="Test: port-channel summary">
+                                    <ACTION sym="script">echo "test show port-channel summary"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="detail" help="Test: port-channel detail">
+                                    <ACTION sym="script">echo "test show port-channel detail"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="snmp-server" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test show snmp-server"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="access-list" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test show access-list"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="route-map" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test show route-map"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="prefix-list" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test show prefix-list"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="ip-route" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test show ip-route"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="power-supply" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test show power-supply"</ACTION>
+                        </COMMAND>
+
+                        <!-- Medium keywords -->
+                        <COMMAND name="policy" help="Test: medium keyword (6 ch)">
+                            <ACTION sym="script">echo "test show policy"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="filter" help="Test: medium keyword (6 ch)">
+                            <ACTION sym="script">echo "test show filter"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="metric" help="Test: medium keyword (6 ch)">
+                            <ACTION sym="script">echo "test show metric"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="export" help="Test: medium keyword (6 ch)">
+                            <ACTION sym="script">echo "test show export"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="import" help="Test: medium keyword (6 ch)">
+                            <ACTION sym="script">echo "test show import"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="logging" help="Test: medium keyword (7 ch)">
+                            <ACTION sym="script">echo "test show logging"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="monitor" help="Test: medium keyword (7 ch)">
+                            <ACTION sym="script">echo "test show monitor"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="version" help="Test: medium keyword (7 ch)">
+                            <ACTION sym="script">echo "test show version"</ACTION>
+                        </COMMAND>
+
+                        <!-- Long keywords -->
+                        <COMMAND name="environment" help="Test: long keyword (11 ch)">
+                            <SWITCH name="test_show_env">
+                                <COMMAND name="temperature" help="Test: env temperature">
+                                    <ACTION sym="script">echo "test show environment temperature"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="humidity" help="Test: env humidity">
+                                    <ACTION sym="script">echo "test show environment humidity"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="redistribute" help="Test: long keyword (12 ch)">
+                            <ACTION sym="script">echo "test show redistribute"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="authentication" help="Test: long keyword (14 ch)">
+                            <ACTION sym="script">echo "test show authentication"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="configuration" help="Test: long keyword (13 ch)">
+                            <ACTION sym="script">echo "test show configuration"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="synchronization" help="Test: long keyword (15 ch)">
+                            <ACTION sym="script">echo "test show synchronization"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="telemetry" help="Test: long keyword (9 ch)">
+                            <SWITCH name="test_show_tel">
+                                <COMMAND name="subscribe" help="Test: telemetry subscribe">
+                                    <ACTION sym="script">echo "test show telemetry subscribe"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="unsubscribe" help="Test: telemetry unsubscribe">
+                                    <ACTION sym="script">echo "test show telemetry unsubscribe"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                    </SWITCH>
+                </COMMAND>
+
+                <!-- ============================================================
+                     router  —  deep nesting (4+ levels) for tree-walk testing
+                     ============================================================ -->
+                <COMMAND name="router" help="Test: deep nesting">
+                    <SWITCH name="test_router_protocol">
+
+                        <COMMAND name="bgp" help="Test: router bgp">
+                            <PARAM name="asn" help="AS number" ptype="/STRING">
+                            <SWITCH name="test_router_bgp">
+                                <COMMAND name="neighbor" help="Test: BGP neighbor">
+                                    <SWITCH name="test_bgp_neighbor">
+                                        <COMMAND name="remote-as" help="Test: neighbor remote-as">
+                                            <ACTION sym="script">echo "test router bgp neighbor remote-as"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="update-source" help="Test: neighbor update-source">
+                                            <ACTION sym="script">echo "test router bgp neighbor update-source"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="description" help="Test: neighbor description">
+                                            <ACTION sym="script">echo "test router bgp neighbor description"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="shutdown" help="Test: neighbor shutdown">
+                                            <ACTION sym="script">echo "test router bgp neighbor shutdown"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="advertisement-interval" help="Test: long nested keyword">
+                                            <ACTION sym="script">echo "test router bgp neighbor advertisement-interval"</ACTION>
+                                        </COMMAND>
+                                    </SWITCH>
+                                </COMMAND>
+                                <COMMAND name="network" help="Test: BGP network">
+                                    <ACTION sym="script">echo "test router bgp network"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="redistribute" help="Test: BGP redistribute">
+                                    <SWITCH name="test_bgp_redist">
+                                        <COMMAND name="connected" help="Test: redistribute connected">
+                                            <ACTION sym="script">echo "test router bgp redistribute connected"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="static" help="Test: redistribute static">
+                                            <ACTION sym="script">echo "test router bgp redistribute static"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="ospf" help="Test: redistribute OSPF">
+                                            <ACTION sym="script">echo "test router bgp redistribute ospf"</ACTION>
+                                        </COMMAND>
+                                    </SWITCH>
+                                </COMMAND>
+                                <COMMAND name="aggregate-address" help="Test: hyphenated nested keyword">
+                                    <ACTION sym="script">echo "test router bgp aggregate-address"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="maximum-paths" help="Test: hyphenated nested keyword">
+                                    <ACTION sym="script">echo "test router bgp maximum-paths"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                            </PARAM>
+                        </COMMAND>
+
+                        <COMMAND name="ospf" help="Test: router ospf">
+                            <SWITCH name="test_router_ospf">
+                                <COMMAND name="area" help="Test: OSPF area">
+                                    <SWITCH name="test_ospf_area">
+                                        <COMMAND name="network" help="Test: OSPF area network">
+                                            <ACTION sym="script">echo "test router ospf area network"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="authentication" help="Test: OSPF area auth">
+                                            <ACTION sym="script">echo "test router ospf area authentication"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="stub" help="Test: OSPF area stub">
+                                            <ACTION sym="script">echo "test router ospf area stub"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="nssa" help="Test: OSPF area nssa">
+                                            <ACTION sym="script">echo "test router ospf area nssa"</ACTION>
+                                        </COMMAND>
+                                    </SWITCH>
+                                </COMMAND>
+                                <COMMAND name="redistribute" help="Test: OSPF redistribute">
+                                    <SWITCH name="test_ospf_redist">
+                                        <COMMAND name="bgp" help="Test: redistribute BGP">
+                                            <ACTION sym="script">echo "test router ospf redistribute bgp"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="connected" help="Test: redistribute connected">
+                                            <ACTION sym="script">echo "test router ospf redistribute connected"</ACTION>
+                                        </COMMAND>
+                                        <COMMAND name="static" help="Test: redistribute static">
+                                            <ACTION sym="script">echo "test router ospf redistribute static"</ACTION>
+                                        </COMMAND>
+                                    </SWITCH>
+                                </COMMAND>
+                                <COMMAND name="passive-interface" help="Test: hyphenated nested keyword">
+                                    <ACTION sym="script">echo "test router ospf passive-interface"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="default-information" help="Test: hyphenated nested keyword">
+                                    <COMMAND name="originate" help="Test: default-information originate">
+                                        <ACTION sym="script">echo "test router ospf default-information originate"</ACTION>
+                                    </COMMAND>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="static" help="Test: router static">
+                            <ACTION sym="script">echo "test router static"</ACTION>
+                        </COMMAND>
+
+                    </SWITCH>
+                </COMMAND>
+
+                <!-- ============================================================
+                     configure  —  mixed keywords and similar-sounding siblings
+                     ============================================================ -->
+                <COMMAND name="configure" help="Test: configure commands">
+                    <SWITCH name="test_configure">
+
+                        <COMMAND name="terminal" help="Test: configure terminal">
+                            <ACTION sym="script">echo "test configure terminal"</ACTION>
+                        </COMMAND>
+
+                        <COMMAND name="interface" help="Test: configure interface">
+                            <SWITCH name="test_conf_iface">
+                                <COMMAND name="ip-address" help="Test: set IP address">
+                                    <ACTION sym="script">echo "test configure interface ip-address"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="shutdown" help="Test: shutdown interface">
+                                    <ACTION sym="script">echo "test configure interface shutdown"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="no-shutdown" help="Test: enable interface">
+                                    <ACTION sym="script">echo "test configure interface no-shutdown"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="speed-auto" help="Test: auto speed">
+                                    <ACTION sym="script">echo "test configure interface speed-auto"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="channel-group" help="Test: port-channel membership">
+                                    <ACTION sym="script">echo "test configure interface channel-group"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="description" help="Test: interface description">
+                                    <ACTION sym="script">echo "test configure interface description"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="mtu" help="Test: short keyword in deep context">
+                                    <ACTION sym="script">echo "test configure interface mtu"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="access-list" help="Test: configure access-list">
+                            <SWITCH name="test_conf_acl">
+                                <COMMAND name="permit" help="Test: ACL permit">
+                                    <ACTION sym="script">echo "test configure access-list permit"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="deny" help="Test: ACL deny">
+                                    <ACTION sym="script">echo "test configure access-list deny"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="route-map" help="Test: configure route-map">
+                            <SWITCH name="test_conf_rm">
+                                <COMMAND name="permit" help="Test: route-map permit">
+                                    <ACTION sym="script">echo "test configure route-map permit"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="deny" help="Test: route-map deny">
+                                    <ACTION sym="script">echo "test configure route-map deny"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="prefix-list" help="Test: configure prefix-list">
+                            <SWITCH name="test_conf_pl">
+                                <COMMAND name="permit" help="Test: prefix-list permit">
+                                    <ACTION sym="script">echo "test configure prefix-list permit"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="deny" help="Test: prefix-list deny">
+                                    <ACTION sym="script">echo "test configure prefix-list deny"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="snmp-server" help="Test: configure snmp-server">
+                            <SWITCH name="test_conf_snmp">
+                                <COMMAND name="community" help="Test: SNMP community">
+                                    <ACTION sym="script">echo "test configure snmp-server community"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="location" help="Test: SNMP location">
+                                    <ACTION sym="script">echo "test configure snmp-server location"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="contact" help="Test: SNMP contact">
+                                    <ACTION sym="script">echo "test configure snmp-server contact"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                        <COMMAND name="logging" help="Test: configure logging">
+                            <SWITCH name="test_conf_log">
+                                <COMMAND name="console" help="Test: logging console">
+                                    <ACTION sym="script">echo "test configure logging console"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="monitor" help="Test: logging monitor">
+                                    <ACTION sym="script">echo "test configure logging monitor"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="buffered" help="Test: logging buffered">
+                                    <ACTION sym="script">echo "test configure logging buffered"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+
+                    </SWITCH>
+                </COMMAND>
+
+                <!-- ============================================================
+                     copy  —  hyphenated at multiple tree levels
+                     ============================================================ -->
+                <COMMAND name="copy" help="Test: copy commands">
+                    <SWITCH name="test_copy">
+                        <COMMAND name="running-config" help="Test: copy source">
+                            <COMMAND name="startup-config" help="Test: copy destination">
+                                <ACTION sym="script">echo "test copy running-config startup-config"</ACTION>
+                            </COMMAND>
+                        </COMMAND>
+                        <COMMAND name="startup-config" help="Test: copy source">
+                            <COMMAND name="running-config" help="Test: copy destination">
+                                <ACTION sym="script">echo "test copy startup-config running-config"</ACTION>
+                            </COMMAND>
+                        </COMMAND>
+                    </SWITCH>
+                </COMMAND>
+
+                <!-- ============================================================
+                     debug  —  keyboard-adjacent typo targets
+                     ============================================================ -->
+                <COMMAND name="debug" help="Test: debug commands">
+                    <SWITCH name="test_debug">
+                        <COMMAND name="bgp" help="Test: debug bgp">
+                            <ACTION sym="script">echo "test debug bgp"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="ospf" help="Test: debug ospf">
+                            <ACTION sym="script">echo "test debug ospf"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="interface" help="Test: debug interface">
+                            <ACTION sym="script">echo "test debug interface"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="telemetry" help="Test: debug telemetry">
+                            <ACTION sym="script">echo "test debug telemetry"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="all" help="Test: debug all">
+                            <ACTION sym="script">echo "test debug all"</ACTION>
+                        </COMMAND>
+                    </SWITCH>
+                </COMMAND>
+
+                <!-- ============================================================
+                     clear  —  hyphenated + short keywords mixed
+                     ============================================================ -->
+                <COMMAND name="clear" help="Test: clear commands">
+                    <SWITCH name="test_clear">
+                        <COMMAND name="counters" help="Test: clear counters">
+                            <ACTION sym="script">echo "test clear counters"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="arp-cache" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test clear arp-cache"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="mac-address-table" help="Test: double-hyphenated keyword">
+                            <ACTION sym="script">echo "test clear mac-address-table"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="ip-route" help="Test: hyphenated keyword">
+                            <ACTION sym="script">echo "test clear ip-route"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="logging" help="Test: clear logging">
+                            <ACTION sym="script">echo "test clear logging"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="bgp" help="Test: clear bgp">
+                            <ACTION sym="script">echo "test clear bgp"</ACTION>
+                        </COMMAND>
+                    </SWITCH>
+                </COMMAND>
+
+                <!-- ============================================================
+                     ping / neighbor / router-asn  —  PARAM slots (swap + preserve)
+                     ============================================================ -->
+                <COMMAND name="ping" help="Test: ping with IP argument">
+                    <PARAM name="ip" help="Destination IP" ptype="/STRING">
+                        <ACTION sym="script">echo "test ping"</ACTION>
+                    </PARAM>
+                </COMMAND>
+
+                <COMMAND name="neighbor" help="Test: neighbor with IP then remote-as">
+                    <PARAM name="ip" help="Neighbor IP" ptype="/STRING">
+                        <COMMAND name="remote-as" help="Test: remote-as">
+                            <PARAM name="asn" help="AS number" ptype="/STRING">
+                                <ACTION sym="script">echo "test neighbor remote-as"</ACTION>
+                            </PARAM>
+                        </COMMAND>
+                    </PARAM>
+                </COMMAND>
+
+                <COMMAND name="asn-router" help="Test: keyword then ASN (swap target)">
+                    <COMMAND name="bgp" help="Test: protocol keyword">
+                        <PARAM name="asn" help="AS number" ptype="/STRING">
+                            <ACTION sym="script">echo "test asn-router bgp"</ACTION>
+                        </PARAM>
+                    </COMMAND>
+                </COMMAND>
+
+                <!-- ============================================================
+                     monitor  —  medium keywords + nested telemetry
+                     ============================================================ -->
+                <COMMAND name="monitor" help="Test: monitor commands">
+                    <SWITCH name="test_monitor">
+                        <COMMAND name="interface" help="Test: monitor interface">
+                            <ACTION sym="script">echo "test monitor interface"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="session" help="Test: monitor session">
+                            <ACTION sym="script">echo "test monitor session"</ACTION>
+                        </COMMAND>
+                        <COMMAND name="telemetry" help="Test: monitor telemetry">
+                            <SWITCH name="test_monitor_tel">
+                                <COMMAND name="subscribe" help="Test: subscribe">
+                                    <ACTION sym="script">echo "test monitor telemetry subscribe"</ACTION>
+                                </COMMAND>
+                                <COMMAND name="unsubscribe" help="Test: unsubscribe">
+                                    <ACTION sym="script">echo "test monitor telemetry unsubscribe"</ACTION>
+                                </COMMAND>
+                            </SWITCH>
+                        </COMMAND>
+                    </SWITCH>
+                </COMMAND>
+
+            </SWITCH>
+        </COMMAND>
+
+    </VIEW>
+
+</KLISH>

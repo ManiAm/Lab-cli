@@ -125,6 +125,58 @@ print(json.dumps(d))
                     </COMMAND>
                 </COMMAND>
 
+                <COMMAND name="bgp" help="Show BGP information">
+                    <SWITCH name="show_bgp_options">
+                        <COMMAND name="summary" help="Show BGP summary">
+                            <ACTION sym="script">
+                                echo "BGP Summary (simulated)"
+                                echo "Router ID: 10.0.0.1, AS: 65001"
+                                echo "Neighbor        AS   State       Up/Down"
+                                echo "10.0.0.2     65002   Established 01:23:45"
+                                echo "10.0.0.3     65003   Established 00:45:12"
+                            </ACTION>
+                        </COMMAND>
+                        <COMMAND name="neighbors" help="Show BGP neighbors">
+                            <ACTION sym="script">
+                                echo "BGP Neighbors (simulated)"
+                                echo "Neighbor: 10.0.0.2, Remote AS: 65002"
+                                echo "  State: Established, Uptime: 01:23:45"
+                                echo "Neighbor: 10.0.0.3, Remote AS: 65003"
+                                echo "  State: Established, Uptime: 00:45:12"
+                            </ACTION>
+                        </COMMAND>
+                    </SWITCH>
+                </COMMAND>
+
+                <COMMAND name="interfaces" help="Show all interfaces">
+                    <SWITCH name="show_interfaces_options">
+                        <COMMAND name="counters" help="Show interface counters">
+                            <ACTION sym="script">
+                                echo "Interface Counters (simulated)"
+                                ip -s link show 2>/dev/null || echo "No interface data available"
+                            </ACTION>
+                        </COMMAND>
+                        <COMMAND name="summary" help="Show interface summary">
+                            <ACTION sym="script">
+                                echo "Interface Summary (simulated)"
+                                ip -brief link show 2>/dev/null || echo "No interface data available"
+                            </ACTION>
+                        </COMMAND>
+                    </SWITCH>
+                </COMMAND>
+
+                <COMMAND name="running-config" help="Show running configuration">
+                    <ACTION sym="script">
+                        echo "Running Configuration (simulated)"
+                        echo "!"
+                        echo "hostname NetLab"
+                        echo "!"
+                        echo "interface lo"
+                        echo "  ip address 127.0.0.1/8"
+                        echo "!"
+                    </ACTION>
+                </COMMAND>
+
                 <COMMAND name="greeting" help="Display a welcome message">
                     <ACTION sym="script">
                         /opt/netlab-cli/scripts/show_greeting.sh
@@ -168,6 +220,51 @@ print(json.dumps(d))
             <ACTION sym="script">
                 python3 /opt/netlab-cli/scripts/cli_search.py /root/.klish/main.xml "${KLISH_PARAM_query}"
             </ACTION>
+        </COMMAND>
+
+        <COMMAND name="traceroute" help="Trace route to a destination">
+            <PARAM name="ip"
+                help="Destination IP address"
+                ptype="/PTYPE_IPV4" />
+            <ACTION sym="script">
+                traceroute "${KLISH_PARAM_ip}" 2>/dev/null || echo "traceroute not available"
+            </ACTION>
+        </COMMAND>
+
+        <COMMAND name="debug" help="Enable debug output">
+            <SWITCH name="debug_options">
+                <COMMAND name="bgp" help="Debug BGP events">
+                    <ACTION sym="script">echo "Debug: BGP debugging enabled (simulated)"</ACTION>
+                </COMMAND>
+                <COMMAND name="daemon" help="Debug daemon events">
+                    <ACTION sym="script">echo "Debug: daemon debugging enabled (simulated)"</ACTION>
+                </COMMAND>
+                <COMMAND name="telemetry" help="Debug telemetry events">
+                    <ACTION sym="script">echo "Debug: telemetry debugging enabled (simulated)"</ACTION>
+                </COMMAND>
+            </SWITCH>
+        </COMMAND>
+
+        <COMMAND name="router" help="Configure a routing protocol">
+            <COMMAND name="bgp" help="BGP routing protocol">
+                <PARAM name="asn" help="AS number" ptype="/STRING">
+                    <ACTION sym="script">
+                        echo "Router BGP ${KLISH_PARAM_asn} configured (simulated)"
+                    </ACTION>
+                </PARAM>
+            </COMMAND>
+        </COMMAND>
+
+        <COMMAND name="neighbor" help="Configure a BGP neighbor">
+            <PARAM name="ip" help="Neighbor IP address" ptype="/PTYPE_IPV4">
+                <COMMAND name="remote-as" help="Set remote AS number">
+                    <PARAM name="asn" help="AS number" ptype="/STRING">
+                        <ACTION sym="script">
+                            echo "Neighbor ${KLISH_PARAM_ip} remote-as ${KLISH_PARAM_asn} configured (simulated)"
+                        </ACTION>
+                    </PARAM>
+                </COMMAND>
+            </PARAM>
         </COMMAND>
 
         <!-- Pipes -->

@@ -1,0 +1,106 @@
+diff --git a/klish/ksession/Makefile.am b/klish/ksession/Makefile.am
+index 67da57d..4bfb626 100644
+--- a/klish/ksession/Makefile.am
++++ b/klish/ksession/Makefile.am
+@@ -9,4 +9,5 @@ libklish_la_SOURCES += \
+ 	klish/ksession/kpargv.c \
+ 	klish/ksession/ksession.c \
+ 	klish/ksession/ksession_parse.c \
++	klish/ksession/ksession_suggest.c \
+ 	klish/ksession/grabber.c
+diff --git a/klish/ksession/ksession_suggest.c b/klish/ksession/ksession_suggest.c
+new file mode 100644
+index 0000000..f0fe90e
+--- /dev/null
++++ b/klish/ksession/ksession_suggest.c
+@@ -0,0 +1,47 @@
++/** @file ksession_suggest.c
++ *
++ * Generic hook for smart command suggestions on parse failure.
++ * Delegates to an external script so the suggestion algorithm can be
++ * swapped without recompiling klish.
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include <faux/error.h>
++#include <faux/str.h>
++
++#include "ksession_suggest.h"
++
++#ifndef KLISH_SUGGEST_SCRIPT
++#define KLISH_SUGGEST_SCRIPT "/opt/netlab-cli/scripts/suggest.py"
++#endif
++
++#define SUGGEST_BUF_SIZE 1024
++
++
++void ksession_suggest(const char *line, faux_error_t *error)
++{
++	char buf[SUGGEST_BUF_SIZE];
++	FILE *fp = NULL;
++
++	if (!line || !error)
++		return;
++
++	setenv("KLISH_SUGGEST_LINE", line, 1);
++
++	fp = popen(KLISH_SUGGEST_SCRIPT, "r");
++	if (!fp)
++		return;
++
++	while (fgets(buf, sizeof(buf), fp)) {
++		size_t slen = strlen(buf);
++		if (slen > 0 && buf[slen - 1] == '\n')
++			buf[slen - 1] = '\0';
++		if (strlen(buf) > 0)
++			faux_error_sprintf(error, "%s", buf);
++	}
++
++	pclose(fp);
++}
+diff --git a/klish/ksession/ksession_suggest.h b/klish/ksession/ksession_suggest.h
+new file mode 100644
+index 0000000..0ed1fe1
+--- /dev/null
++++ b/klish/ksession/ksession_suggest.h
+@@ -0,0 +1,12 @@
++#ifndef _klish_ksession_suggest_h
++#define _klish_ksession_suggest_h
++
++#include <faux/error.h>
++
++C_DECL_BEGIN
++
++void ksession_suggest(const char *line, faux_error_t *error);
++
++C_DECL_END
++
++#endif
+diff --git a/klish/ktp/ktpd_session.c b/klish/ktp/ktpd_session.c
+index c3ce23e..7775370 100644
+--- a/klish/ktp/ktpd_session.c
++++ b/klish/ktp/ktpd_session.c
+@@ -26,6 +26,8 @@
+ #include <klish/ktp.h>
+ #include <klish/ktp_session.h>
+ 
++#include "../ksession/ksession_suggest.h"
++
+ #define BUF_LIMIT 65536
+ 
+ 
+@@ -452,8 +454,10 @@ static bool_t ktpd_session_exec(ktpd_session_t *ktpd, const char *line,
+ 
+ 	// Parsing
+ 	exec = ksession_parse_for_exec(ktpd->session, line, error);
+-	if (!exec)
++	if (!exec) {
++		ksession_suggest(line, error);
+ 		return BOOL_FALSE;
++	}
+ 
+ 	// Set dry-run flag
+ 	kexec_set_dry_run(exec, dry_run);
