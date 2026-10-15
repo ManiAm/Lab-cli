@@ -498,9 +498,108 @@ To return to a previous mode, type `exit` at any level. From Privileged EXEC, yo
 
 > **Note on Permissions:** The "Operation not permitted" error above is expected. The CLI runs inside a container without the `NET_ADMIN` capability, so the kernel blocks the state change. The output confirms that Klish successfully triggered the command script.
 
+### Enable Password
 
+In the current Lab-CLI implementation, typing `enable` immediately escalates to Privileged EXEC mode with no authentication. This is intentional for a lab environment where frictionless access matters more than security. In a production system, the `enable` command would prompt for a password before granting access.
 
+#### How Vendors Implement It
 
+The enable password mechanism follows the same pattern across all major vendors. It comes down to three steps: store a hash, prompt the user, and compare.
+
+**Step 1 — The administrator sets a password.**
+
+When the administrator configures `enable secret`, the device does **not** store the plaintext password. Instead, it passes the password through a one-way hashing algorithm and stores only the resulting hash in the configuration file:
+
+```text
+Router(config)# enable algorithm-type scrypt secret MySecretPassword
+```
+
+The running configuration shows the hash, never the original password:
+
+```text
+enable secret 9 $9$salt$hashed_output_here
+```
+
+The `9` indicates the scrypt algorithm. The stored string contains the algorithm identifier, the random salt, and the hash — everything the device needs to verify a password later, but nothing that can be reversed to recover the original.
+
+**Step 2 — A user types `enable` and enters a password.**
+
+The device prompts for the password, reads it without echoing characters to the screen, and hashes the input using the same algorithm and salt that were stored in Step 1.
+
+**Step 3 — The device compares the two hashes.**
+
+If the newly computed hash matches the stored hash, the user is granted access. If not, the device prints "Access denied" and the session stays in User EXEC. At no point does the device need to know or reconstruct the original password.
+
+#### Hash Algorithm Evolution
+
+Cisco IOS has gone through several hash types over the years, each replacing the previous one as cryptographic standards advanced:
+
+| Type | Algorithm       | Status        | Notes |
+|------|-----------------|---------------|-------|
+| 0    | Cleartext       | Deprecated    | Password stored as-is — visible to anyone who reads the config |
+| 7    | Vigenère cipher | Deprecated    | Reversible in seconds with freely available tools |
+| 5    | Salted MD5      | Deprecated    | One-way hash, but MD5 is now considered too fast for password hashing — vulnerable to brute-force with modern GPUs |
+| 8    | PBKDF2/SHA-256  | Supported     | 80-bit salt, 20,000 iterations — deliberately slow to resist brute-force |
+| 9    | scrypt          | Best practice | 80-bit salt, 16,384 iterations — memory-hard, making GPU attacks impractical |
+
+The key insight is that modern algorithms (Type 8 and 9) are intentionally **slow and memory-expensive** to compute. This is the opposite of what you want in most software, but for password hashing, slowness is the entire point — it makes brute-force attacks take years instead of minutes.
+
+#### Enable Password in Lab-CLI
+
+Lab-CLI implements the enable password mechanism described above. By default, no password is set (lab mode — `enable` grants access immediately). An administrator can configure a password from Global Configuration mode:
+
+```text
+NetLab> enable
+NetLab# configure terminal
+NetLab(config)# enable-secret set
+New enable password: ********
+Confirm password: ********
+% Enable password has been set
+NetLab(config)# exit
+NetLab# exit
+```
+
+Once set, `enable` prompts for the password before granting access:
+
+```text
+NetLab> enable
+Password: ********
+NetLab#
+```
+
+A wrong password keeps the user in User EXEC:
+
+```text
+NetLab> enable
+Password: ********
+% Access denied
+NetLab>
+```
+
+To remove the password and return to lab mode:
+
+```text
+NetLab(config)# enable-secret remove
+% Enable password removed (lab mode — no password required)
+```
+
+**How it works under the hood:**
+
+1. `enable-secret set` hashes the password with SHA-512 (via `openssl passwd -6`) and stores only the hash in `/etc/netlab/enable.secret`.
+2. The `enable` command in `main.xml` runs two `<ACTION>` tags in sequence:
+
+```xml
+<COMMAND name="enable" help="Enter Privileged EXEC mode">
+    <ACTION sym="script" in="tty" out="tty">bash /opt/netlab-cli/scripts/enable_auth.sh</ACTION>
+    <ACTION sym="nav@klish">push view_priv_exec</ACTION>
+</COMMAND>
+```
+
+3. The first ACTION runs `enable_auth.sh`, which reads the password interactively (`read -s`), hashes the input with the same salt, and compares. It exits 0 on match, 1 on mismatch.
+4. The second ACTION (`nav push`) only executes if the first exits with code 0. If the password is wrong, Klish stops and the user stays in User EXEC.
+5. If no password file exists, the script exits 0 immediately — no prompt, no delay.
+
+This is the same hash-then-compare mechanism used by `/etc/shadow` on Linux and by PAM (`pam_unix.so`) for system login authentication.
 
 ### Configuration Sessions
 
@@ -720,6 +819,10 @@ Klish 3 is designed as a lightweight execution engine and does not include a bui
 
     └── view_config
         ├── interface : Select an interface to configure
+        ├── enable-secret : Manage the enable password
+        │   ├── set : Set the enable password
+        │   ├── remove : Remove the enable password (lab mode)
+        │   └── status : Check if an enable password is configured
         ├── router : Configure a routing protocol
         │   └── bgp : BGP routing protocol
         ├── neighbor : Configure a BGP neighbor

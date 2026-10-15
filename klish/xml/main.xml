@@ -85,9 +85,11 @@
         </COMMAND>
 
         <!-- enable: escalate to Privileged EXEC mode.
-             In a production system, this is where you would check
-             the enable password before allowing the push. -->
+             If /etc/netlab/enable.secret exists, the user must enter
+             the correct password. Otherwise, access is granted immediately
+             (lab mode). -->
         <COMMAND name="enable" help="Enter Privileged EXEC mode">
+            <ACTION sym="script" in="tty" out="tty">bash /opt/netlab-cli/scripts/enable_auth.sh</ACTION>
             <ACTION sym="nav@klish">push view_priv_exec</ACTION>
         </COMMAND>
 
@@ -614,6 +616,20 @@ print(json.dumps(d))
                 </ACTION>
                 <ACTION sym="nav@klish">push view_interface</ACTION>
             </PARAM>
+        </COMMAND>
+
+        <COMMAND name="enable-secret" help="Manage the enable password">
+            <SWITCH name="enable_secret_options">
+                <COMMAND name="set" help="Set the enable password">
+                    <ACTION sym="script" in="tty" out="tty">bash /opt/netlab-cli/scripts/enable_secret.sh set</ACTION>
+                </COMMAND>
+                <COMMAND name="remove" help="Remove the enable password (lab mode)">
+                    <ACTION sym="script">bash /opt/netlab-cli/scripts/enable_secret.sh remove</ACTION>
+                </COMMAND>
+                <COMMAND name="status" help="Check if an enable password is configured">
+                    <ACTION sym="script">bash /opt/netlab-cli/scripts/enable_secret.sh status</ACTION>
+                </COMMAND>
+            </SWITCH>
         </COMMAND>
 
         <COMMAND name="router" help="Configure a routing protocol">
