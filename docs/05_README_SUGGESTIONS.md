@@ -1,8 +1,118 @@
 # Smart Command Suggestions
 
-When a user mistypes a CLI command, most systems print a generic error and stop. A suggestion engine does more: it compares the invalid input to the commands that are actually valid, and offers the closest matches.
+When a command fails, most CLIs respond with a generic error message like `Illegal command` and stop. The user is left guessing what went wrong — was it a typo, a missing word, the wrong order, or a command from a different tool? Smart command suggestions analyze the invalid input, identify the most likely intent, and print the closest valid commands so the user can recover quickly.
 
-This document explains the algorithms behind that behavior. Techniques are numbered 1–16 and written in dependency order: if technique A uses an idea from technique B, B is explained first. Each section covers the idea, a worked example, and the trade-offs. Working Python implementations live in [`techniques/`](../techniques/).
+## How the Integration Works
+
+All valid commands in klish are defined in XML files. At startup, the daemon loads these files and builds an in-memory tree of every command, subcommand, and keyword the user is allowed to type. When the user enters a command, the daemon walks this tree word by word. If every word matches a node in the tree, the command executes. If any word has no match, the daemon returns a generic `Illegal command` error.
+
+The upstream klish project (written in C) has no built-in way to intercept this failure and suggest corrections. Because klish is an external dependency that we do not maintain, the goal is to change as little of its source code as possible. The integration is therefore split into two independent layers:
+
+    klish/
+    ├── patches/
+    │   └── klish-suggest.patch    # C hook (small, stable)
+    └── scripts/
+        └── suggest.py             # suggestion algorithm (Python, swappable)
+
+**Layer 1 — The hook** (`klish-suggest.patch`) is a small C patch applied to the klish source at build time. It modifies a single function in the daemon: when command parsing fails, before the error is sent back to the client, the hook stores the rejected command line in the environment variable `KLISH_SUGGEST_LINE` and invokes an external script via `popen()`. Each line the script prints is appended to the error message. The hook has no knowledge of suggestion algorithms — it only runs the script and relays its output.
+
+**Layer 2 — The algorithm** (`suggest.py`) is a standalone Python script that performs the suggestion logic. It reads the rejected command line from `KLISH_SUGGEST_LINE`, walks the command tree, and applies the [combined approach](#technique-16-combined-approach) to score candidates. Matches are printed to stdout; the hook appends them to the error shown to the user.
+
+Because the two layers are independent, the algorithm can be updated without recompiling klish. Editing `suggest.py` alone is sufficient — the C patch, the Dockerfile, and the rest of the project remain untouched.
+
+## Categories of Mistakes
+
+The suggestion engine handles several categories of user errors. Each category is explained below with an example.
+
+### 1. Misspelled Command
+
+The user typed a word that is close to a valid keyword but contains a typo — a missing letter, an extra letter, swapped adjacent letters, or a wrong letter.
+
+    NetLab> show interfce
+    Error: Illegal command
+    Closest match:
+      show interface
+
+Here `interfce` is missing the letter `a`, which counts as an insertion edit (cost 1).
+
+This also works when multiple words contain typos. The engine scores each word and sums the costs:
+
+    NetLab> shwo termnial session
+    Error: Illegal command
+    Closest match:
+      show terminal session
+
+Two corrections: `shwo` → `show` (adjacent `w` and `o` swapped, transposition cost 0) and `termnial` → `terminal` (adjacent `n` and `i` swapped, transposition cost 0). The total score is 0, which falls well within the acceptance threshold.
+
+### 2. Incomplete Command
+
+The user typed a valid prefix but stopped too early. The command needs additional keywords to be complete. The engine finds all commands that begin with what was typed and lists them as completions.
+
+    NetLab> show terminal
+    Error: Illegal command
+    Closest match:
+      show terminal session
+
+Nothing is misspelled. `show terminal` is a valid beginning, but it is not a complete command on its own — it requires `session` to finish.
+
+### 3. Abbreviation
+
+Experienced users often shorten commands (for example, typing `sh ip int` instead of `show ip interface`). These shortened forms look like severe typos to a generic distance matcher, but the engine recognizes that each word is a valid prefix of the corresponding keyword and expands it.
+
+    NetLab> sh ip int
+    Error: Illegal command
+    Closest match:
+      show ip interface
+
+Each word is the beginning of the full keyword: `sh` → `show`, `ip` → `ip` (exact match), `int` → `interface`.
+
+### 4. Swapped Words
+
+The user typed the correct words but in the wrong order. This is common with commands that mix keywords and values, where the user accidentally places a value before its keyword.
+
+    NetLab> show eth0 interface
+    Error: Illegal command
+    Closest match:
+      show interface eth0
+
+All three words — `show`, `eth0`, and `interface` — are present. They only need to be rearranged into the correct sequence `show interface eth0`.
+
+### 5. Hyphenated Keyword
+
+Some commands use hyphenated keywords like `running-config` or `port-channel`. Users often type the parts as separate words or misspell one half. The engine splits each hyphenated keyword into its constituent parts and matches the user's words against them individually.
+
+The following example uses the `test` command tree, which provides a rich set of hyphenated keywords for exercising the algorithm:
+
+    NetLab> test show rning config
+    Error: Illegal command
+    Closest match:
+      test show running-config
+
+The engine splits `running-config` into `running` and `config`, matches `rning` against `running` (close enough at cost 2), and `config` against `config` (exact match). It then reassembles the result as `test show running-config`.
+
+### 6. Cross-Vendor Syntax
+
+Network engineers often move between devices from different vendors (Cisco IOS, Juniper JUNOS, Arista EOS). When they type a command that is valid on another platform but does not exist locally, character-level scoring finds no close match because the keywords are entirely different. An AI backend covers this gap: it interprets the intent behind the typed command and maps it to the closest equivalent in the local command set.
+
+Without AI enabled, the local scoring cannot find a meaningful match because the keywords are entirely different:
+
+    NetLab> show ip bgp neighbors 10.0.0.1 received-routes
+    Error: Illegal command
+
+With AI enabled, the engine recognizes the intent and maps it to the local equivalent:
+
+    NetLab> show ip bgp neighbors 10.0.0.1 received-routes
+    Error: Illegal command
+    Closest match:
+      show bgp neighbors 10.0.0.1 received-routes
+
+The input is valid Cisco IOS syntax. The local CLI uses `show bgp` instead of `show ip bgp`, but the intent is the same. This stage is off by default and requires connectivity to an inference server. When disabled or unreachable, the user still receives any suggestions produced by the local stages.
+
+---
+
+## Algorithm Deep Dive
+
+The sections above cover what the suggestion engine does from the user's perspective. The rest of this document explains the algorithms behind that behavior. Techniques are numbered 1–16 and written in dependency order: if technique A uses an idea from technique B, B is explained first. Each section covers the idea, a worked example, and the trade-offs. Working Python implementations live in [`techniques/`](../techniques/).
 
 | Group | Techniques | What you will learn |
 |-------|------------|---------------------|
@@ -18,7 +128,7 @@ This document explains the algorithms behind that behavior. Techniques are numbe
 
 ## How CLI Commands Are Organized
 
-In this project, commands are defined in [Klish](README_KLISH.md) XML and form a **command tree**. At any point in a command, only a small set of next words is legal.
+In this project, commands are defined in [Klish](01_README_KLISH.md) XML and form a **command tree**. At any point in a command, only a small set of next words is legal.
 
 ```text
 root
