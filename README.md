@@ -53,10 +53,10 @@ Start the Klish interactive CLI:
 
 Sample output:
 
-    NetLab# show greeting
+    NetLab> show greeting
     Hello from NetLab-CLI!
     This is a Klish (clish) demo running in Docker.
-    NetLab# exit
+    NetLab> exit
 
 Or run a command using the `-c` option:
 
@@ -82,7 +82,7 @@ To verify this architecture, we can open multiple interactive terminals to the c
 
 First client:
 
-    NetLab# show terminal session
+    NetLab> show terminal session
 
     --- Session Information ---
     Session PID: 22
@@ -92,7 +92,7 @@ First client:
 
 Second client:
 
-    NetLab# show terminal session
+    NetLab> show terminal session
 
     --- Session Information ---
     Session PID: 43
@@ -127,18 +127,18 @@ Session B (PID 44):
 
 Klish provides context-aware Tab completion. As you type a command, it analyzes where you are in the syntax tree and suggests only the tokens that are valid at that position. When you type:
 
-    NetLab# show <TAB>
+    NetLab> show <TAB>
 
 Klish looks at all child elements defined under the `show` command in the XML and shows the available subcommands:
 
-    NetLab# show
+    NetLab> show
     greeting    interface    ip   terminal   version
 
 ### Tab Completion (Dynamic)
 
 Klish can also perform dynamic (runtime-generated) Tab completion. Instead of listing static keywords, it can run a script or program to discover valid values. For example, after defining a parameter whose type pulls interface names from `/sys/class/net`, pressing Tab after show interface produces:
 
-    NetLab# show interface <TAB>
+    NetLab> show interface <TAB>
     eth0   lo
 
 Here, Klish:
@@ -151,7 +151,7 @@ Here, Klish:
 
 Klish provides inline help. When you use `?`, it shows both the command keyword and a short description:
 
-    NetLab# show ?
+    NetLab> show ?
     greeting   Display a welcome message
     interface  Show interface details
     ip         Show IP-related information
@@ -164,7 +164,7 @@ The left column comes from each command’s `name` attribute, and the right colu
 
 Klish 3 uses a strict command resolver by default. In this mode, users must either type the full command name or rely on tab completion to expand it. Typing a partial keyword that does not exactly match a command results in an error, even if the prefix is unique:
 
-    NetLab# his
+    NetLab> his
     Error: Illegal command
 
 Command abbreviations can be enabled explicitly by using the `value` attribute with the `|` delimiter:
@@ -198,7 +198,7 @@ In Klish 2, parameter validation was often handled directly within the XML defin
 
 In Klish 3, this built-in regex engine has been removed in favor of a more flexible, plugin-based architecture. Validation is now delegated entirely to Symbols (functions) inside plugins. To validate a parameter, you define a `PTYPE` (Parameter Type) that contains an `<ACTION>`. When a user enters a value, Klish passes that value to the action (typically a script or a C function). The action must process the input and return an exit code: 0 for valid and non-zero for invalid. This approach, while slightly more verbose in XML, allows for arbitrarily complex validation logic beyond what simple regular expressions could achieve.
 
-    NetLab# ping 8.8.8.256
+    NetLab> ping 8.8.8.256
     Error: Illegal command
 
 ### Command History
@@ -209,7 +209,7 @@ The standard `history` command fails in Klish 3 due to ephemeral execution envir
 
 The solution is to manually implement persistence using `<LOG>`. Since the Klish server has access to the command string currently being executed (exposed via the `KLISH_PARENT_LINE` environment variable), you can configure a global `<LOG>` tag to intercept every command and append it to a persistent text file. The `history` command is then redefined not to ask the shell for its memory, but to read and display the contents of this log file.
 
-    NetLab# history
+    NetLab> history
       1  show ip interface
       2  history
       3  show interface eth0
@@ -220,7 +220,7 @@ Note that this history is global, not per-session. Different CLI sessions all ap
 
 The Klish 3 engine provides native support for piping command output through text filters using the `|` operator. Any `<COMMAND>` element with the attribute `filter="true"` is automatically available as a pipe target, allowing users to refine output without additional plumbing.
 
-    NetLab# show interface eth0 | grep inet
+    NetLab> show interface eth0 | grep inet
         inet 172.18.0.2/16 brd 172.18.255.255 scope global eth0
 
 The following utilities are available:
@@ -251,7 +251,7 @@ In Klish 3, the `|` character is reserved by the engine for text filters. Format
 
 Json Example:
 
-    NetLab# show interface eth0 format json
+    NetLab> show interface eth0 format json
 
     [
       {
@@ -265,14 +265,14 @@ Json Example:
 
 CSV Example:
 
-    NetLab# show version format csv
+    NetLab> show version format csv
 
     "system","node","release","version","machine"
     "Linux","abcd1234","6.6.87","#1 SMP ...","x86_64"
 
 XML Example:
 
-    NetLab# show ip interface format xml
+    NetLab> show ip interface format xml
 
     <output>
       <item>
@@ -288,32 +288,10 @@ XML Example:
 
 Formatted output can still be piped through text filters. The formatter runs first (inside the command), and the text filter operates on the formatted result via the normal pipe:
 
-    NetLab# show interface eth0 format json | grep ifname
+    NetLab> show interface eth0 format json | grep ifname
         "ifname": "eth0",
 
 > Piping a text filter after a formatter will return matching lines but may produce an incomplete document.
-
-### Views
-
-A View in Klish is a logical container that groups related commands together. It acts as a distinct "mode" or "context" within the CLI. When a user defines a view, they are creating a specialized environment (a namespace) where only specific, relevant commands exist. Entering a view isolates the user from the global configuration, allowing them to focus on a specific task or subsystem.
-
-For example, navigating from the main menu into the "tools" view changes the prompt to indicate the new context:
-
-    NetLab# tools
-    NetLab(tools)#
-      date       Show current date
-      sys-check  Check system resources
-      exit       Go back
-
-Here are the key benefits of using views:
-
-1. **Logical Organization**: Views prevent "command clutter" by organizing hundreds of potential commands into manageable categories. Instead of presenting the user with every possible option at once, views hide irrelevant commands until they are needed.
-
-2. **Contextual Safety**: Views restrict command availability based on context. This prevents accidents by ensuring that sensitive commands (like `reboot` or `format`) are only accessible in specific, privileged views, rather than being available at the top level.
-
-3. **Workflow Guidance**: Views guide the user through a structured workflow. For example, to configure a network card, a user might enter interface view. Once inside, the CLI inherently implies that all subsequent commands (like ip address or shutdown) apply only to that specific interface, reducing the need for repetitive parameters.
-
-4. **Command Name Reusability**: Views allow you to reuse simple command names without conflict. For example, the command `restart` could restart a specific service when inside the Service View, but restart the entire router when inside the System View. Because they live in different views, they do not interfere with each other.
 
 ### External Scripts
 
@@ -321,11 +299,9 @@ While Klish allows you to write small logic blocks directly inside the XML, comp
 
 The script plugin in Klish spawns a standard shell instance. To invoke an external script, you simply provide the full path to the executable file within the `<ACTION>` tag. You can pass Klish parameters to these scripts either as command-line arguments or by reading the environment variables Klish automatically exports.
 
-The following example demonstrates the `sys-check` command, which is defined within the `tools` view. This command illustrates how Klish captures user input (a parameter) and passes it directly to an underlying Bash script to control execution logic. In this scenario, the user selects the `cpu` target. Klish passes this argument to the script, which then filters the system information accordingly.
+The following example demonstrates the `sys-check` command. This command illustrates how Klish captures user input (a parameter) and passes it directly to an underlying Bash script to control execution logic. In this scenario, the user selects the `cpu` target. Klish passes this argument to the script, which then filters the system information accordingly.
 
-    NetLab# tools
-    NetLab(tools)#
-    NetLab(tools)# sys-check cpu
+    NetLab# sys-check cpu
     --------------------------------
     Checking System: cpu
     --------------------------------
@@ -344,20 +320,187 @@ Lua is not a replacement for Bash or Python. Instead, it fills a gap those langu
 - Build dynamic prompts and modes
 - Run lightweight control logic without creating new processes
 
-### Configuration View
+### Views
 
-To ensure system stability and prevent accidental changes, administrative commands are isolated in a dedicated view. You cannot modify system settings from the main menu; you must explicitly enter configuration view. This prevents users from accidentally running destructive commands (like `shutdown`) while just browsing status.
+A **view** in Klish is a logical container that groups related commands together. Think of it as a separate "room" inside the CLI — when you enter a view, you see only the commands that belong to that room.
 
-The following example demonstrates entering configuration view, selecting an interface, and attempting to modify its state. Note that as you navigate deeper into specific components (like an interface), the prompt changes to indicate exactly what object you are modifying.
+For example, navigating from the main menu into the `tools` view changes the prompt and shows only the commands available there:
+
+    NetLab> tools
+    NetLab(tools)#
+      date       Show current date
+      sys-check  Check system resources
+      exit       Go back
+
+Views provide four key benefits:
+
+1. **Organization** — Instead of presenting every possible command at once, views group them into manageable categories. You only see what is relevant to your current task.
+
+2. **Safety** — Sensitive commands (like `reboot` or `format`) are only accessible inside specific views, reducing the risk of running something dangerous by accident.
+
+3. **Workflow guidance** — When you enter a view for a specific object (for example, a network interface), every command you type automatically applies to that object. You do not need to repeat the object name with every command.
+
+4. **Name reuse** — The same command name can exist in different views without conflict. For example, `restart` could restart a single service inside a Service View, but restart the entire system inside a System View.
+
+This pattern is not unique to Klish. Nearly every managed network device uses the same idea. The next section walks through the industry-standard Cisco IOS hierarchy, so you can see where this design comes from.
+
+### Industry-Standard CLI Model
+
+Cisco IOS introduced the modal CLI that most network vendors follow today. The hierarchy has four levels, each entered by typing a specific command and exited with `exit`. The prompt always to show which level you are in.
+
+#### The Cisco IOS Mode Hierarchy
+
+<img src="pics/cisco-ios-views.png" alt="segment" width="750">
+
+The sections below explain each level step by step: what it is for, how you get into it, and what you can (and cannot) do once inside.
+
+#### Step 1 — User EXEC Mode
+
+**Prompt:** `Router>`
+
+This is the first level every user sees after logging in via SSH or console. It provides only basic, read-only commands — `ping`, `traceroute`, `show clock` — and nothing that can modify the device. Think of it as the lobby of a building: you can look around, but you cannot open any doors.
+
+The name *EXEC* refers to the command-execution environment (as opposed to configuration). The *User* qualifier distinguishes this restricted level from the more powerful Privileged EXEC level.
+
+#### Step 2 — Privileged EXEC Mode (Enable Mode)
+
+**Prompt:** `Router#`
+
+To reach this level, type `enable` and enter the enable password. The session escalates from the `>` prompt to the `#` prompt.
+
+Privileged EXEC unlocks full operational access: every `show` command (including `show running-config`), diagnostic tools (`debug`, `clear`), and system operations (`copy`, `reload`). However, it does **not** allow configuration changes — you cannot modify interfaces, routing protocols, or any part of the running config. To make changes, you must go one level deeper.
+
+#### Step 3 — Global Configuration Mode
+
+**Prompt:** `Router(config)#`
+
+Enter this level by typing `configure terminal` (often abbreviated `conf t`) from Privileged EXEC. Commands here apply to the device as a whole — setting the hostname, adding static routes, or entering a sub-configuration mode for a specific component.
+
+The separation between Privileged EXEC and Global Configuration exists so that operators who only need to monitor and troubleshoot cannot accidentally change the device's configuration.
+
+#### Step 4 — Interface Configuration Mode (and Other Sub-Modes)
+
+**Prompt:** `Router(config-if)#`
+
+From Global Configuration, type an interface name — for example, `interface GigabitEthernet0/1` — to enter a sub-configuration mode scoped to that single interface. Every command you type (`ip address`, `shutdown`, `speed`, `duplex`) applies only to that interface.
+
+The same pattern extends to other sub-modes: `(config-router)` for routing protocols, `(config-line)` for console and VTY lines, and so on.
+
+#### Mode Summary
+
+| Mode            | Prompt      | Read config? | Clear / reload? | Change config? |
+|-----------------|-------------|:------------:|:---------------:|:--------------:|
+| User EXEC       | `>`         | Limited      | ✗               | ✗             |
+| Privileged EXEC | `#`         | Full         | ✓               | ✗             |
+| Global Config   | `(config)#` | Full         | ✓               | ✓             |
+
+The three-tier model separates **observation** (User EXEC) from **operation** (Privileged EXEC) from **configuration** (Global Config). Each deeper level narrows the scope of available commands, and the prompt always reflects the current context.
+
+#### The Access-Control Problem
+
+The view/mode hierarchy controls *which commands are available where*, but it does not control *who is allowed to run them*. These are two separate concerns:
+
+| Concept            | What it controls                                     |
+|--------------------|------------------------------------------------------|
+| **View / Mode**    | Which commands are *available* at the current prompt |
+| **Access control** | Which users can *execute* a command or enter a mode  |
+
+> Views determine context; access control determines permission.
+
+Early Cisco IOS had just two access-control tiers — User EXEC and Privileged EXEC. You typed `enable`, entered a shared password, and received full admin access. It was all-or-nothing.
+
+This broke down as teams grew. A NOC technician who only needed `show running-config` for troubleshooting also received the ability to `reload` the device, because both commands lived behind the same `enable` gate. The industry responded by layering access-control mechanisms on top of the mode hierarchy. The sections below walk through each one, from simplest to most granular.
+
+##### 1. Privilege Levels (0–15)
+
+Cisco IOS assigns every command a numeric privilege level, and every user session runs at a level. Three levels matter by default:
+
+| Level | What it means |
+|-------|---------------|
+| 0     | `logout`, `enable`, `disable`, `help`, `exit` — nothing else |
+| 1     | User EXEC (`>`) — basic `show`, `ping`, `traceroute` |
+| 15    | Privileged EXEC (`#`) — everything |
+
+Typing `enable` with no argument escalates the session to level 15. Levels 2–14 are empty by default, but an administrator can move individual commands into them to create custom tiers:
+
+```text
+Router(config)# privilege exec level 5 show running-config
+Router(config)# enable secret level 5 SomePassword
+```
+
+A user at level 1 can now type `enable 5`, enter `SomePassword`, and gain access to `show running-config` without reaching full level-15 Privileged EXEC.
+
+> **Note:** In practice, most operators only use levels 1 and 15. The 16-tier ladder is rarely exploited.
+
+##### 2. Per-User Privilege Assignment
+
+The `enable <level>` approach works, but the level password is shared — every operator who needs level 5 uses the same `SomePassword`. There is no way to track who ran a command, and revoking one person's access means changing the password for everyone.
+
+The fix is to assign a privilege level directly to a named user account:
+
+```text
+Router(config)# username noc_operator privilege 5 secret MyPassword
+```
+
+Now `noc_operator` logs in with personal credentials and lands at level 5 automatically — no `enable 5` step required. Each operator has a unique username, so the device can log exactly who did what, and revoking access means removing a single account.
+
+##### 3. Parser Views (Role-Based CLI Views)
+
+Parser views go further by defining named roles with an explicit whitelist of allowed commands:
+
+```text
+Router(config)# parser view NOC-VIEW
+Router(config-view)# secret MyViewPassword
+Router(config-view)# commands exec include show
+Router(config-view)# commands exec include ping
+Router(config-view)# commands exec exclude clear
+```
+
+A user assigned to `NOC-VIEW` can only run the commands listed — everything else is hidden. This is the closest Cisco IOS gets to true Role-Based Access Control (RBAC).
+
+##### 4. TACACS+ / RADIUS (External Per-Command Authorization)
+
+The most granular approach: every command the user types is sent to an external AAA server, which returns *permit* or *deny*. This is what large enterprises use for full per-user, per-command audit and control.
+
+
+### Mode Hierarchy in Lab-CLI
+
+Lab-CLI implements the same four-tier model described above. When you start the CLI, you land in User EXEC mode with a limited set of safe, read-only commands:
+
+    NetLab> show version
+    Linux netlab-cli 6.6.87 ...
+
+    NetLab> show running-config
+    Error: Illegal command
+
+To access operational commands, type `enable` to enter Privileged EXEC mode:
+
+    NetLab> enable
+    NetLab# show running-config
+    Running Configuration (simulated)
+    !
+    hostname NetLab
+    !
+
+To make configuration changes, enter Global Configuration mode, then navigate into a specific interface:
 
     NetLab# configure terminal
-    NetLab(config)# interface <TAB>
-    eth0   lo
     NetLab(config)# interface eth0
     NetLab(config-if-eth0)# shutdown
     RTNETLINK answers: Operation not permitted
 
-> Note on Permissions: The "Operation not permitted" error shown above is expected behavior in this development environment. The CLI is running inside a generic container without the NET_ADMIN capability, so the Linux kernel blocks the state change. However, the output confirms that the Klish logic successfully triggered the command script.
+To return to a previous mode, type `exit` at any level. From Privileged EXEC, you can also type `disable` to drop back to User EXEC:
+
+    NetLab(config-if-eth0)# exit
+    NetLab(config)# exit
+    NetLab# disable
+    NetLab>
+
+> **Note on Permissions:** The "Operation not permitted" error above is expected. The CLI runs inside a container without the `NET_ADMIN` capability, so the kernel blocks the state change. The output confirms that Klish successfully triggered the command script.
+
+
+
+
 
 ### Configuration Sessions
 
@@ -391,6 +534,8 @@ The `commit` command is the execution engine. It reads the candidate file line-b
 
     NetLab(config-session-s-1)# commit
 
+
+
 ### Smart Command Suggestions
 
 When a command fails, most CLIs respond with a generic error message like `Illegal command` and stop. The user is left guessing what went wrong — was it a typo, a missing word, the wrong order, or a command from a different tool? Smart command suggestions analyze the invalid input, identify the most likely intent, and print the closest valid commands so the user can recover quickly.
@@ -417,11 +562,11 @@ Because the two layers are independent, the algorithm can be updated without rec
 
 The suggestion engine handles several categories of user errors. Each category is explained below with an example.
 
-##### Misspelled Command
+##### 1. Misspelled Command
 
 The user typed a word that is close to a valid keyword but contains a typo — a missing letter, an extra letter, swapped adjacent letters, or a wrong letter.
 
-    NetLab# show interfce
+    NetLab> show interfce
     Error: Illegal command
     Closest match:
       show interface
@@ -430,75 +575,78 @@ Here `interfce` is missing the letter `a`, which counts as an insertion edit (co
 
 This also works when multiple words contain typos. The engine scores each word and sums the costs:
 
-    NetLab# confgure termnial
+    NetLab> shwo termnial session
     Error: Illegal command
     Closest match:
-      configure terminal
+      show terminal session
 
-Two corrections: `confgure` → `configure` (missing `i`, insertion cost 1) and `termnial` → `terminal` (adjacent `n` and `i` swapped, transposition cost 0). The total score is 1, which falls within the acceptance threshold.
+Two corrections: `shwo` → `show` (adjacent `w` and `o` swapped, transposition cost 0) and `termnial` → `terminal` (adjacent `n` and `i` swapped, transposition cost 0). The total score is 0, which falls well within the acceptance threshold.
 
-##### Incomplete Command
+##### 2. Incomplete Command
 
 The user typed a valid prefix but stopped too early. The command needs additional keywords to be complete. The engine finds all commands that begin with what was typed and lists them as completions.
 
-    NetLab# show interfaces
+    NetLab> show terminal
     Error: Illegal command
     Closest match:
-      show interfaces counters
-      show interfaces summary
+      show terminal session
 
-Nothing is misspelled. `show interfaces` is a valid beginning, but it is not a complete command on its own — it requires either `counters` or `summary` to finish.
+Nothing is misspelled. `show terminal` is a valid beginning, but it is not a complete command on its own — it requires `session` to finish.
 
-##### Abbreviation
+##### 3. Abbreviation
 
 Experienced users often shorten commands (for example, typing `sh ip int` instead of `show ip interface`). These shortened forms look like severe typos to a generic distance matcher, but the engine recognizes that each word is a valid prefix of the corresponding keyword and expands it.
 
-    NetLab# sh ip int
+    NetLab> sh ip int
     Error: Illegal command
     Closest match:
       show ip interface
 
 Each word is the beginning of the full keyword: `sh` → `show`, `ip` → `ip` (exact match), `int` → `interface`.
 
-##### Swapped Words
+##### 4. Swapped Words
 
 The user typed the correct words but in the wrong order. This is common with commands that mix keywords and values, where the user accidentally places a value before its keyword.
 
-    NetLab# router 65001 bgp
+    NetLab> show eth0 interface
     Error: Illegal command
     Closest match:
-      router bgp 65001
+      show interface eth0
 
-All three words — `router`, `65001`, and `bgp` — are present. They only need to be rearranged into the correct sequence `router bgp 65001`.
+All three words — `show`, `eth0`, and `interface` — are present. They only need to be rearranged into the correct sequence `show interface eth0`.
 
-##### Hyphenated Keyword
+##### 5. Hyphenated Keyword
 
 Some commands use hyphenated keywords like `running-config` or `port-channel`. Users often type the parts as separate words or misspell one half. The engine splits each hyphenated keyword into its constituent parts and matches the user's words against them individually.
 
-    NetLab# show rning config
+The following example uses the `test` command tree, which provides a rich set of hyphenated keywords for exercising the algorithm:
+
+    NetLab> test show rning config
     Error: Illegal command
     Closest match:
-      show running-config
+      test show running-config
 
-The engine splits `running-config` into `running` and `config`, matches `rning` against `running` (close enough at cost 1), and `config` against `config` (exact match). It then reassembles the result as `show running-config`.
+The engine splits `running-config` into `running` and `config`, matches `rning` against `running` (close enough at cost 2), and `config` against `config` (exact match). It then reassembles the result as `test show running-config`.
 
-##### Cross-Vendor Syntax
+##### 6. Cross-Vendor Syntax
 
 Network engineers often move between devices from different vendors (Cisco IOS, Juniper JUNOS, Arista EOS). When they type a command that is valid on another platform but does not exist locally, character-level scoring finds no close match because the keywords are entirely different. An AI backend covers this gap: it interprets the intent behind the typed command and maps it to the closest equivalent in the local command set.
 
-Without AI enabled, such commands produce a generic error with no suggestion:
+Without AI enabled, the local scoring cannot find a meaningful match because the keywords are entirely different:
 
-    NetLab# show ip bgp neighbors 10.0.0.1 received-routes
+    NetLab> show ip bgp neighbors 10.0.0.1 received-routes
     Error: Illegal command
 
 With AI enabled, the engine recognizes the intent and maps it to the local equivalent:
 
-    NetLab# show ip bgp neighbors 10.0.0.1 received-routes
+    NetLab> show ip bgp neighbors 10.0.0.1 received-routes
     Error: Illegal command
     Closest match:
       show bgp neighbors 10.0.0.1 received-routes
 
 The input is valid Cisco IOS syntax. The local CLI uses `show bgp` instead of `show ip bgp`, but the intent is the same. This stage is off by default and requires connectivity to an inference server. When disabled or unreachable, the user still receives any suggestions produced by the local stages.
+
+
 
 ### Command Tree View
 
@@ -508,15 +656,32 @@ The primary purpose of the tree view is to improve discoverability and auditing.
 
 Klish 3 is designed as a lightweight execution engine and does not include a built-in mechanism to render this visual tree at runtime. It stores the command hierarchy in memory for processing but lacks a native renderer to output it as a text graphic. To achieve this functionality, we can implement a custom solution using an external Python script. This script parses the underlying XML definition files and generates the visual tree.
 
-    NetLab# tree
+    NetLab> tree
 
     [ CLI Tree for /root/.klish/main.xml ]
 
-    └── main : Top-level view
-        ├── tools : Enter tools mode
-        ├── configure : Enter configuration mode
-        │   └── terminal : Configure from the terminal
+    └── main : User EXEC mode
         ├── history : Display command history
+        ├── exit : Exit
+        ├── clear : Clear the terminal screen
+        ├── enable : Enter Privileged EXEC mode
+        ├── show : Show system information
+        │   ├── interface : Show interface details
+        │   ├── ip : Show IP-related information
+        │   │   └── interface : Show all interfaces with IP configuration
+        │   ├── version : Show system version
+        │   ├── greeting : Display a welcome message
+        │   └── terminal : Display terminal information
+        │       └── session : Show current session details
+        ├── ping : Ping a destination
+        ├── traceroute : Trace route to a destination
+        ├── tree : Dump CLI structure tree
+        ├── search : Search for a CLI command
+        └── tools : Enter tools mode
+
+    └── view_priv_exec : Privileged EXEC mode
+        ├── history : Display command history
+        ├── disable : Return to User EXEC mode
         ├── exit : Exit
         ├── clear : Clear the terminal screen
         ├── show : Show system information
@@ -524,10 +689,29 @@ Klish 3 is designed as a lightweight execution engine and does not include a bui
         │   ├── ip : Show IP-related information
         │   │   └── interface : Show all interfaces with IP configuration
         │   ├── version : Show system version
-        │   └── greeting : Display a welcome message
+        │   ├── bgp : Show BGP information
+        │   │   ├── summary : Show BGP summary
+        │   │   └── neighbors : Show BGP neighbors
+        │   ├── interfaces : Show all interfaces
+        │   │   ├── counters : Show interface counters
+        │   │   └── summary : Show interface summary
+        │   ├── running-config : Show running configuration
+        │   ├── greeting : Display a welcome message
+        │   └── terminal : Display terminal information
+        │       └── session : Show current session details
         ├── ping : Ping a destination
+        ├── traceroute : Trace route to a destination
         ├── tree : Dump CLI structure tree
-        └── search : Search
+        ├── search : Search for a CLI command
+        ├── debug : Enable debug output
+        │   ├── bgp : Debug BGP events
+        │   ├── daemon : Debug daemon events
+        │   └── telemetry : Debug telemetry events
+        ├── sys-check : Check system resources
+        ├── tools : Enter tools mode
+        └── configure : Enter configuration mode
+            ├── terminal : Configure from the terminal
+            └── session : Enter a named configuration session
 
     └── view_tools : Tools Sub-menu
         ├── date : Show current date
@@ -536,7 +720,13 @@ Klish 3 is designed as a lightweight execution engine and does not include a bui
 
     └── view_config
         ├── interface : Select an interface to configure
-        └── exit : Exit to main menu
+        ├── router : Configure a routing protocol
+        │   └── bgp : BGP routing protocol
+        ├── neighbor : Configure a BGP neighbor
+        ├── show : Show configuration information
+        │   └── candidate-config : Show candidate configuration (draft)
+        ├── commit : Apply buffered changes
+        └── exit : Exit to Privileged EXEC mode
 
     └── view_interface
         ├── ip : Internet Protocol
@@ -548,17 +738,32 @@ Klish 3 is designed as a lightweight execution engine and does not include a bui
 
 Large CLIs quickly become difficult to navigate, especially when commands exist across multiple views and nested hierarchies. To make discovery easier, we have included a command search utility. Instead of guessing where a command lives, you can search for it by keyword and see every location where it appears, along with its help text.
 
-    NetLab# search interface
+    NetLab> search interface
     [ CLI Search: "interface" in /root/.klish/main.xml ]
 
     1. main -> show -> interface
-      help: Show interface details
+       help: Show interface details
 
     2. main -> show -> ip -> interface
-      help: Show all interfaces with IP configuration
+       help: Show all interfaces with IP configuration
 
-    3. view_config -> interface
-      help: Select an interface to configure
+    3. view_priv_exec -> show -> interface
+       help: Show interface details
 
-    4. view_interface -> shutdown
-      help: Disable the interface
+    4. view_priv_exec -> show -> ip -> interface
+       help: Show all interfaces with IP configuration
+
+    5. view_priv_exec -> show -> interfaces
+       help: Show all interfaces
+
+    6. view_priv_exec -> show -> interfaces -> counters
+       help: Show interface counters
+
+    7. view_priv_exec -> show -> interfaces -> summary
+       help: Show interface summary
+
+    8. view_config -> interface
+       help: Select an interface to configure
+
+    9. view_interface -> shutdown
+       help: Disable the interface

@@ -308,14 +308,30 @@ def stage1(tokens, view):
 # Stage 2: flat-corpus scan
 # ---------------------------------------------------------------------------
 
+def _has_action(elem):
+    """True if elem contains an <ACTION> tag (i.e. is a valid complete command)."""
+    for child in list(elem):
+        if _local(child.tag) == "ACTION":
+            return True
+    return False
+
+
 def enumerate_paths(elem, prefix):
-    """Yield (token_list, node) for every COMMAND/PARAM path under elem."""
+    """Yield (token_list, node) for every COMMAND/PARAM path under elem.
+
+    Also yields intermediate nodes that have an <ACTION> (i.e. commands
+    that are valid to execute even though they have children).
+    """
     commands = collect_commands(elem)
     params = collect_params(elem)
     if not commands and not params:
         if prefix:
             yield prefix
         return
+    # Yield intermediate paths for commands that have an ACTION
+    # (valid on their own) even if they have child commands.
+    if prefix and (commands or params) and _has_action(elem):
+        yield prefix
     emitted = False
     for child in commands:
         name = cmd_name(child)
@@ -525,6 +541,11 @@ def main():
         return
 
     views = get_views(roots)
+
+    # The C hook does not pass the current view name, so we default to
+    # "main" (User EXEC). Suggestions are therefore scoped to the view
+    # the user is in at login. To support other views, the hook would
+    # need to export a KLISH_SUGGEST_VIEW variable.
     view = views.get("main")
     if view is None:
         return
