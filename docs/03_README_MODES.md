@@ -1,8 +1,8 @@
-# Views, Modes & Access Control
+# CLI Modes & Access Control
 
-## Views
+## Views (Modes)
 
-A **view** in Klish is a logical container that groups related commands together. Think of it as a separate "room" inside the CLI — when you enter a view, you see only the commands that belong to that room.
+A **view** in Klish is a logical container that groups related commands together. The industry calls this concept a **mode** — "view" is simply Klish's name for it. Think of it as a separate "room" inside the CLI — when you enter a view, you see only the commands that belong to that room.
 
 For example, navigating from the main menu into the `tools` view changes the prompt and shows only the commands available there:
 
@@ -143,44 +143,9 @@ A user assigned to `NOC-VIEW` can only run the commands listed — everything el
 The most granular approach: every command the user types is sent to an external AAA server, which returns *permit* or *deny*. This is what large enterprises use for full per-user, per-command audit and control.
 
 
-## Mode Hierarchy in Lab-CLI
-
-Lab-CLI implements the same four-tier model described above. When you start the CLI, you land in User EXEC mode with a limited set of safe, read-only commands:
-
-    NetLab> show version
-    Linux netlab-cli 6.6.87 ...
-
-    NetLab> show running-config
-    Error: Illegal command
-
-To access operational commands, type `enable` to enter Privileged EXEC mode:
-
-    NetLab> enable
-    NetLab# show running-config
-    Running Configuration (simulated)
-    !
-    hostname NetLab
-    !
-
-To make configuration changes, enter Global Configuration mode, then navigate into a specific interface:
-
-    NetLab# configure terminal
-    NetLab(config)# interface eth0
-    NetLab(config-if-eth0)# shutdown
-    RTNETLINK answers: Operation not permitted
-
-To return to a previous mode, type `exit` at any level. From Privileged EXEC, you can also type `disable` to drop back to User EXEC:
-
-    NetLab(config-if-eth0)# exit
-    NetLab(config)# exit
-    NetLab# disable
-    NetLab>
-
-> **Note on Permissions:** The "Operation not permitted" error above is expected. The CLI runs inside a container without the `NET_ADMIN` capability, so the kernel blocks the state change. The output confirms that Klish successfully triggered the command script.
-
 ## Enable Password
 
-In the current Lab-CLI implementation, typing `enable` immediately escalates to Privileged EXEC mode with no authentication. This is intentional for a lab environment where frictionless access matters more than security. In a production system, the `enable` command would prompt for a password before granting access.
+Step 2 of the Cisco IOS hierarchy mentions typing `enable` and entering a password to reach Privileged EXEC. But how does the device verify that password without storing it in plaintext? This section explains the mechanism that every major vendor uses.
 
 ### How Vendors Implement It
 
@@ -224,9 +189,45 @@ Cisco IOS has gone through several hash types over the years, each replacing the
 
 The key insight is that modern algorithms (Type 8 and 9) are intentionally **slow and memory-expensive** to compute. This is the opposite of what you want in most software, but for password hashing, slowness is the entire point — it makes brute-force attacks take years instead of minutes.
 
+
+## Mode Hierarchy in Lab-CLI
+
+The sections above covered the industry-standard model: four mode tiers, access-control mechanisms, and the hash-based enable password. Lab-CLI implements the same structure. When you start the CLI, you land in User EXEC mode with a limited set of safe, read-only commands:
+
+    NetLab> show version
+    Linux netlab-cli 6.6.87 ...
+
+    NetLab> show running-config
+    Error: Illegal command
+
+To access operational commands, type `enable` to enter Privileged EXEC mode:
+
+    NetLab> enable
+    NetLab# show running-config
+    Running Configuration (simulated)
+    !
+    hostname NetLab
+    !
+
+To make configuration changes, enter Global Configuration mode, then navigate into a specific interface:
+
+    NetLab# configure terminal
+    NetLab(config)# interface eth0
+    NetLab(config-if-eth0)# shutdown
+    RTNETLINK answers: Operation not permitted
+
+To return to a previous mode, type `exit` at any level. From Privileged EXEC, you can also type `disable` to drop back to User EXEC:
+
+    NetLab(config-if-eth0)# exit
+    NetLab(config)# exit
+    NetLab# disable
+    NetLab>
+
+> **Note on Permissions:** The "Operation not permitted" error above is expected. The CLI runs inside a container without the `NET_ADMIN` capability, so the kernel blocks the state change. The output confirms that Klish successfully triggered the command script.
+
 ### Enable Password in Lab-CLI
 
-Lab-CLI implements the enable password mechanism described above. By default, no password is set (lab mode — `enable` grants access immediately). An administrator can configure a password from Global Configuration mode:
+By default, no enable password is set — typing `enable` grants access immediately. This is intentional for a lab environment where frictionless access matters more than security. When a password is configured, Lab-CLI uses the same hash-then-compare mechanism described above. An administrator can set it from Global Configuration mode:
 
 ```text
 NetLab> enable
@@ -295,7 +296,9 @@ In complex network environments, making changes one by one can be risky. If you 
 
 - **Rollback**: In a full production system, this allows you to revert the system to a previous valid state if a committed change causes issues.
 
-To demonstrate this capability in our Klish 3 environment without a heavy database backend, we implemented a file-based state mechanism. This allows us to simulate distinct "live" and "session" modes using standard Linux filesystem operations.
+### Configuration Sessions in Lab-CLI
+
+To demonstrate this capability in Lab-CLI without a heavy database backend, we implemented a file-based state mechanism. This allows us to simulate distinct "live" and "session" modes using standard Linux filesystem operations.
 
 When a user enters a configuration session, the CLI creates a unique session file and sets a session flag for that specific Process ID (PID). This ensures that multiple administrators can work on different drafts simultaneously without their changes colliding.
 

@@ -61,7 +61,7 @@ Or run a command using the `-c` option:
 |------------------------------------------------------------|----------------|
 | [Klish Introduction](docs/01_README_KLISH.md)              | Client-server architecture, terminal sessions, process isolation |
 | [CLI Features](docs/02_README_CLI_FEATURES.md)             | Tab completion, help, abbreviation, history, filters, formatters, scripting |
-| [Modes & Access Control](docs/03_README_MODES.md)          | Views, Cisco IOS hierarchy, enable password, config sessions |
+| [CLI Modes & Access Control](docs/03_README_MODES.md)      | Cisco IOS hierarchy, enable password, config sessions |
 | [Command Discovery](docs/04_README_DISCOVERY.md)           | Tree view and command search |
 | [Smart Command Suggestions](docs/05_README_SUGGESTIONS.md) | Typo correction, abbreviation expansion, cross-vendor mapping |
 | [CLI in SONiC Ecosystem](docs/06_README_CLI_SONIC.md)      | CLI frameworks in the SONiC ecosystem |
